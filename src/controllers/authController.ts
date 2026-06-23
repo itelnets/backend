@@ -2,217 +2,269 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User';
 import { generateToken } from '../utils/jwt';
-import { verifyFirebaseIdToken } from '../utils/firebaseAuth';
+import { generateOTP, isOTPExpired } from '../utils/otp';
+import { sendEmailOTP, sendVerificationSuccessEmail, sendPasswordResetLink, sendPasswordResetSuccessEmail } from '../utils/emailOtp';
+import crypto from 'crypto';
 
-/**
- * Register user and send OTP via Firebase
- * POST /api/auth/register
- * 
- * Note: The frontend should use Firebase Client SDK to send OTP.
- * This endpoint stores user data temporarily until OTP is verified.
- */
+
 export const register = async (req: Request, res: Response) => {
     try {
-        const { name, mobileNumber, password, role } = req.body;
+        const { email, mobileNumber, password } = req.body;
 
         // Validation
-        if (!name || !mobileNumber || !password) {
+        if (!email || !mobileNumber || !password) {
             return res.status(400).json({
-                message: 'Name, mobile number, and password are required'
+                message: 'Email, mobile number, and password are required',
             });
         }
 
-        if (!['customer', 'admin'].includes(role)) {
-            return res.status(400).json({
-                message: 'Role must be either "customer" or "admin"'
-            });
+        // Validate email format strictly (allowing common TLDs to prevent typos like .comv)
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com|in|org|net|co\.in|edu|gov|io|co)$/i;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ message: 'Invalid email format' });
         }
 
         // Validate phone number format (should include country code)
         const phoneRegex = /^\+[1-9]\d{1,14}$/;
         if (!phoneRegex.test(mobileNumber)) {
             return res.status(400).json({
-                message: 'Invalid phone number format. Please include country code (e.g., +1234567890)'
+                message: 'Invalid phone number format. Please include country code (e.g., +911234567890)',
             });
         }
 
-        // Check if user already exists
-        const existingUser = await User.findOne({ mobileNumber });
-        if (existingUser && existingUser.isVerified) {
-            return res.status(400).json({
-                message: 'User with this mobile number already exists'
-            });
+        // Check if verified user already exists (by email or mobile)
+        const existingByEmail = await User.findOne({ email });
+        if (existingByEmail && existingByEmail.isEmailVerified) {
+            return res.status(400).json({ message: 'Email already registered' });
+        }
+
+        const existingByMobile = await User.findOne({ mobileNumber });
+        if (existingByMobile && existingByMobile.isEmailVerified) {
+            return res.status(400).json({ message: 'Mobile number already registered' });
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create or update user (unverified)
+        // Check if unverified user recently requested an OTP
+        const existingUser = existingByEmail || existingByMobile;
+        if (existingUser && existingUser.otpExpiresAt && existingUser.otpExpiresAt > new Date()) {
+            // Only block if they are trying with the EXACT same email and mobile
+            if (existingUser.email === email && existingUser.mobileNumber === mobileNumber) {
+                return res.status(400).json({ message: 'OTP already sent. Please try after 2 minutes' });
+            }
+        }
+
+        // Generate OTP
+        const otp = generateOTP();
+        const otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
+
+        // Create or update unverified user
         if (existingUser) {
-            existingUser.name = name;
+            existingUser.email = email;
+            existingUser.mobileNumber = mobileNumber;
             existingUser.password = hashedPassword;
-            existingUser.role = role;
-            existingUser.isVerified = false;
+            existingUser.isEmailVerified = false;
+            existingUser.otp = otp;
+            existingUser.otpExpiresAt = otpExpiresAt;
             await existingUser.save();
         } else {
             await User.create({
-                name,
+                email,
                 mobileNumber,
                 password: hashedPassword,
-                role,
-                isVerified: false
+                role: 'customer',
+                isEmailVerified: false,
+                otp,
+                otpExpiresAt,
             });
         }
 
-        // Note: OTP sending is handled by Firebase Client SDK on the frontend
-        // The frontend should call Firebase's sendPhoneVerificationCode method
+        // Send OTP via Email
+        const sent = await sendEmailOTP(email, otp);
+        if (!sent) {
+            return res.status(500).json({
+                message: 'Failed to send OTP email. Please try again',
+            });
+        }
+
         res.status(200).json({
-            message: 'OTP sent to your mobile number!',
-            mobileNumber: mobileNumber
+            message: `OTP sent successfully.`,
+            email,
         });
     } catch (error: any) {
         console.error('Register error:', error);
-        res.status(500).json({
-            message: 'Registration failed. Please try again.'
-        });
+        res.status(500).json({ message: 'Registration failed. Please try again' });
     }
 };
 
-/**
- * Verify OTP using Firebase ID token and complete registration
- * POST /api/auth/verify-otp
- * 
- * The frontend should verify the OTP with Firebase Client SDK first,
- * then send the Firebase ID token to this endpoint.
- */
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
-        const { mobileNumber, idToken } = req.body;
+        const { email, otp } = req.body;
 
-        // Validation
-        if (!mobileNumber || !idToken) {
-            return res.status(400).json({
-                message: 'Mobile number and Firebase ID token are required'
-            });
+        if (!email || !otp) {
+            return res.status(400).json({ message: 'Email and OTP are required' });
         }
 
-        // Verify Firebase ID token
-        let decodedToken;
-        try {
-            decodedToken = await verifyFirebaseIdToken(idToken);
-        } catch (error: any) {
-            return res.status(401).json({
-                message: 'Invalid or expired Firebase token. Please verify OTP again.'
-            });
-        }
-
-        // Verify that the phone number in the token matches the request
-        const tokenPhoneNumber = decodedToken.phone_number;
-        if (tokenPhoneNumber !== mobileNumber) {
-            return res.status(400).json({
-                message: 'Phone number mismatch. Please try again.'
-            });
-        }
-
-        // Find user
-        let user = await User.findOne({ mobileNumber });
+        const user = await User.findOne({ email });
         if (!user) {
-            return res.status(404).json({
-                message: 'User not found. Please register again.'
-            });
+            return res.status(404).json({ message: 'User not found. Please register again' });
         }
 
-        // Mark user as verified
-        user.isVerified = true;
+        // Check OTP match
+        if (!user.otp || user.otp !== otp) {
+            return res.status(400).json({ message: 'Invalid OTP. Please try again' });
+        }
+
+        // Check OTP expiry
+        if (!user.otpExpiresAt || isOTPExpired(user.otpExpiresAt)) {
+            return res.status(400).json({ message: 'Your OTP has expired' });
+        }
+
+        // Mark verified and clear OTP
+        user.isEmailVerified = true;
+        user.otp = undefined;
+        user.otpExpiresAt = undefined;
         await user.save();
 
-        // Generate JWT token for our backend
-        const token = generateToken({
-            userId: user._id.toString(),
-            mobileNumber: user.mobileNumber,
-            role: user.role
-        });
+        // Send Welcome/Success Email (background task)
+        sendVerificationSuccessEmail(user.email).catch(console.error);
 
-        // Return user info and token
         res.status(200).json({
-            message: 'Registration successful!',
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                mobileNumber: user.mobileNumber,
-                role: user.role,
-                isVerified: user.isVerified
-            },
-            role: user.role
+            message: 'Registration successfully!',
         });
     } catch (error: any) {
         console.error('Verify OTP error:', error);
-        res.status(500).json({
-            message: 'Verification failed. Please try again.'
-        });
+        res.status(500).json({ message: 'Verification failed. Please try again' });
     }
 };
 
-/**
- * Login user
- * POST /api/auth/login
- */
 export const login = async (req: Request, res: Response) => {
     try {
-        const { mobileNumber, password } = req.body;
+        const { email, password } = req.body;
 
-        if (!mobileNumber || !password) {
-            return res.status(400).json({
-                message: 'Mobile number and password are required'
-            });
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
         }
 
-        const user = await User.findOne({ mobileNumber });
+        const user = await User.findOne({ email });
 
         if (!user) {
-            return res.status(404).json({
-                message: 'User not found. Please register first.'
-            });
+            return res.status(404).json({ message: 'Email not registered' });
         }
 
-        if (!user.isVerified) {
-            return res.status(401).json({
-                message: 'Please verify your mobile number first.'
-            });
+        if (!user.isEmailVerified) {
+            return res.status(401).json({ message: 'Please verify your email first' });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
-
         if (!isPasswordValid) {
-            return res.status(401).json({
-                message: 'Invalid credentials'
-            });
+            return res.status(401).json({ message: 'Password does not match' });
         }
 
         const token = generateToken({
             userId: user._id.toString(),
-            mobileNumber: user.mobileNumber,
-            role: user.role
+            email: user.email,
+            role: user.role,
         });
 
         res.status(200).json({
-            message: 'Login successful!',
+            message: 'Login successfully!',
             token,
+            email: user.email,
+            name: user.email,
             user: {
                 id: user._id,
-                name: user.name,
+                email: user.email,
                 mobileNumber: user.mobileNumber,
                 role: user.role,
-                isVerified: user.isVerified
+                isEmailVerified: user.isEmailVerified,
             },
-            role: user.role
+            role: user.role,
         });
     } catch (error: any) {
         console.error('Login error:', error);
-        res.status(500).json({
-            message: 'Login failed. Please try again.'
-        });
+        res.status(500).json({ message: 'Login failed. Please try again later' });
     }
 };
 
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required' });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: 'Email not registered' });
+        }
+
+        if (!user.isEmailVerified) {
+            return res.status(401).json({ message: 'Please verify your email first' });
+        }
+
+        // Check if a reset link was recently sent
+        if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt > new Date()) {
+            return res.status(400).json({ message: 'Password reset link already sent. Please try after 2 minutes' });
+        }
+
+        // Generate a cryptographically secure token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+
+        // Save to user (expires in 2 minutes)
+        user.resetPasswordToken = resetToken;
+        user.resetPasswordExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+        await user.save();
+
+        // Send Email
+        const sent = await sendPasswordResetLink(user.email, resetToken);
+        if (!sent) {
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpiresAt = undefined;
+            await user.save();
+            return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+        }
+
+        res.status(200).json({ message: 'Password reset link sent successfully' });
+    } catch (error: any) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ message: 'Something went wrong. Please try again later.' });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res.status(400).json({ message: 'Token and new password are required' });
+        }
+
+        // Find user by token
+        const user = await User.findOne({ resetPasswordToken: token });
+
+        if (!user || !user.resetPasswordExpiresAt || user.resetPasswordExpiresAt < new Date()) {
+            return res.status(400).json({ message: 'Password reset link has expired.' });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update user
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpiresAt = undefined;
+        await user.save();
+
+        // Send Success Email (background task)
+        sendPasswordResetSuccessEmail(user.email).catch(console.error);
+
+        res.status(200).json({ message: 'Password has been reset successfully' });
+    } catch (error: any) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ message: 'Failed to reset password. Please try again later.' });
+    }
+};

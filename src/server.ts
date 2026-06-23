@@ -1,12 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import authRoutes from './routes/auth';
 import productRoutes from './routes/product';
 import { logger } from './middleware/logger';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -14,7 +12,7 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 app.use(logger);
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL,
     credentials: true
 }));
 app.use(express.json());
@@ -30,9 +28,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Connect to MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce';
+const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URI as string)
     .then(() => {
         console.log('Connected to MongoDB');
         app.listen(PORT, () => {
