@@ -4,6 +4,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import authRoutes from './routes/auth';
 import productRoutes from './routes/product';
+import uploadRoutes from './routes/upload';
 import { logger } from './middleware/logger';
 
 const app = express();
@@ -13,8 +14,9 @@ const PORT = process.env.PORT || 4000;
 app.use(logger);
 app.use(cors({
     origin: function (origin, callback) {
-        const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'];
-        if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.FRONTEND_URL === origin) {
+        const defaultOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://admin.localhost:3000'];
+        const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins;
+        if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.FRONTEND_URL === origin || process.env.ADMIN_URL === origin) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -28,6 +30,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

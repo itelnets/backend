@@ -99,7 +99,7 @@ export const sendVerificationSuccessEmail = async (email: string): Promise<boole
 export const sendPasswordResetLink = async (email: string, token: string): Promise<boolean> => {
     const emailUser = process.env.EMAIL_USER;
     const emailPass = process.env.EMAIL_PASS;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL;
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
 
     const isProduction = Boolean(emailUser && emailPass);
