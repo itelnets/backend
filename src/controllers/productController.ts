@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Product from '../models/Product';
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3 = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',
@@ -10,10 +11,29 @@ const s3 = new S3Client({
     }
 });
 
+const getPublicUrl = (key: string) => {
+    if (!key) return key;
+    // If it's already a full URL, return it
+    if (key.startsWith('http')) return key;
+    
+    const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
+    const region = process.env.AWS_REGION || 'us-east-1';
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+};
+
+const processProductForResponse = async (product: any) => {
+    const prodObj = product.toObject ? product.toObject() : product;
+    if (prodObj.images && Array.isArray(prodObj.images)) {
+        prodObj.images = prodObj.images.map((img: string) => getPublicUrl(img));
+    }
+    return prodObj;
+};
+
 export const getProducts = async (req: Request, res: Response) => {
     try {
         const products = await Product.find({});
-        res.status(200).json(products);
+        const processedProducts = await Promise.all(products.map(processProductForResponse));
+        res.status(200).json(processedProducts);
     } catch (error) {
         console.error('Error fetching products:', error);
         res.status(500).json({ message: 'Server error fetching products' });
@@ -24,7 +44,8 @@ export const getProductById = async (req: Request, res: Response) => {
     try {
         const product = await Product.findById(req.params.id);
         if (product) {
-            res.status(200).json(product);
+            const processedProduct = await processProductForResponse(product);
+            res.status(200).json(processedProduct);
         } else {
             res.status(404).json({ message: 'Product not found' });
         }
@@ -45,6 +66,18 @@ export const createProduct = async (req: Request, res: Response) => {
     }
 };
 
+const extractKeyFromUrl = (urlOrKey: string) => {
+    if (!urlOrKey) return urlOrKey;
+    let key = String(urlOrKey);
+    // Remove query parameters
+    if (key.includes('?')) key = key.split('?')[0];
+    // Extract key after amazonaws.com/
+    if (key.includes('.amazonaws.com/')) {
+        return key.split('.amazonaws.com/')[1];
+    }
+    return key;
+};
+
 export const updateProduct = async (req: Request, res: Response) => {
     try {
         const product = await Product.findById(req.params.id);
@@ -53,9 +86,9 @@ export const updateProduct = async (req: Request, res: Response) => {
             const oldImages = (product.images || []).map(img => String(img));
             let newImages: string[] = [];
             if (Array.isArray(req.body.images)) {
-                newImages = req.body.images.map((img: any) => String(img));
+                newImages = req.body.images.map((img: any) => extractKeyFromUrl(String(img)));
             } else if (typeof req.body.images === 'string') {
-                newImages = [String(req.body.images)];
+                newImages = [extractKeyFromUrl(String(req.body.images))];
             }
             const imagesToDelete = oldImages.filter(img => !newImages.includes(img));
 

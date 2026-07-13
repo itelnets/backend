@@ -56,14 +56,14 @@ router.post('/', upload.single('image'), async (req: Request, res: Response) => 
         
         const fileKey = (req.file as any).key;
         
-        // Generate Presigned URL for frontend preview
+        // Generate Public URL for frontend preview
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-        const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
-        const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        const region = process.env.AWS_REGION || 'us-east-1';
+        const publicUrl = `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
         
         res.json({
             message: 'Image uploaded successfully',
-            imageUrl: presignedUrl,
+            imageUrl: publicUrl,
             imageKey: fileKey
         });
     } catch (error) {
@@ -83,10 +83,10 @@ router.get('/file/*', async (req: Request, res: Response) => {
         }
         
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-        const command = new GetObjectCommand({ Bucket: bucket, Key: fileKey });
-        const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        const region = process.env.AWS_REGION || 'us-east-1';
+        const publicUrl = `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
         
-        res.redirect(presignedUrl);
+        res.redirect(publicUrl);
     } catch (error) {
         console.error('Error retrieving file:', error);
         res.status(500).json({ message: 'Error retrieving file' });
