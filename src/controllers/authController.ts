@@ -147,19 +147,20 @@ export const login = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Email and password are required' });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
 
         if (!user) {
-            return res.status(404).json({ message: 'Email not registered' });
+            return res.status(401).json({ message: 'Invalid email or password' });
         }
 
-        if (!user.isEmailVerified) {
+        // Bypass verification check for admin
+        if (user.role !== 'admin' && !user.isEmailVerified) {
             return res.status(401).json({ message: 'Please verify your email first' });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Password does not match' });
+            return res.status(401).json({ message: 'Invalid email or password' });
         }
 
         const token = generateToken({

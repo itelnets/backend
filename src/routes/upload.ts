@@ -28,16 +28,21 @@ const upload = multer({
         key: function (req: any, file: any, cb: any) {
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             const filename = file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname);
-            const productId = req.body.productId || 'unassigned';
-            cb(null, `products/${productId}/${filename}`);
+            const type = req.query.type || 'product';
+            if (type === 'banner') {
+                cb(null, `banners/${filename}`);
+            } else {
+                const productId = req.body.productId || req.query.productId || 'unassigned';
+                cb(null, `products/${productId}/${filename}`);
+            }
         }
     }),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB limit
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png|webp|gif/;
+        const filetypes = /jpeg|jpg|png/;
         const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-        
+
         if (mimetype && extname) {
             return cb(null, true);
         }
@@ -53,18 +58,19 @@ router.post('/', upload.single('image'), async (req: Request, res: Response) => 
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
-        
+
         const fileKey = (req.file as any).key;
-        
+
         // Generate Public URL for frontend preview
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
         const region = process.env.AWS_REGION || 'us-east-1';
         const publicUrl = `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
-        
+
         res.json({
             message: 'Image uploaded successfully',
             imageUrl: publicUrl,
-            imageKey: fileKey
+            imageKey: fileKey,
+            size: req.file.size
         });
     } catch (error) {
         console.error('Error uploading image:', error);
@@ -81,12 +87,17 @@ router.get('/file/*', async (req: Request, res: Response) => {
         if (!fileKey) {
             return res.status(400).json({ message: 'File key is required' });
         }
-        
+
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-        const region = process.env.AWS_REGION || 'us-east-1';
-        const publicUrl = `https://${bucket}.s3.${region}.amazonaws.com/${fileKey}`;
         
-        res.redirect(publicUrl);
+        // Generate a presigned URL (valid for 1 hour)
+        const command = new GetObjectCommand({
+            Bucket: bucket,
+            Key: fileKey,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        
+        res.redirect(signedUrl);
     } catch (error) {
         console.error('Error retrieving file:', error);
         res.status(500).json({ message: 'Error retrieving file' });
