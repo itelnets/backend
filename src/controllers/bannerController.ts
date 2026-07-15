@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import Banner from '../models/Banner';
-import mongoose from 'mongoose';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 // Initialize S3 Client
@@ -14,9 +13,30 @@ const s3 = new S3Client({
 
 // Get S3 Public URL
 const getPublicUrl = (key: string) => {
+    if (!key) return key;
+    if (key.startsWith('http')) return key;
+
     const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
     const region = process.env.AWS_REGION || 'us-east-1';
     return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+};
+
+const getImageKeyFromUrl = (urlOrKey: string) => {
+    if (!urlOrKey) return urlOrKey;
+    let value = String(urlOrKey);
+
+    if (value.includes('?')) {
+        value = value.split('?')[0];
+    }
+    if (value.includes('.amazonaws.com/')) {
+        return value.split('.amazonaws.com/')[1];
+    }
+    return value;
+};
+
+const normalizeBannerImageValue = (urlOrKey: string) => {
+    const value = String(urlOrKey);
+    return value.startsWith('http') ? value : getPublicUrl(getImageKeyFromUrl(value));
 };
 
 export const getBanners = async (req: Request, res: Response) => {
@@ -48,12 +68,14 @@ export const createBanner = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Image key is required' });
         }
 
+        const normalizedImageUrl = normalizeBannerImageValue(String(imageKey));
+
         // determine order (append to end)
         const last = await Banner.findOne().sort({ order: -1 }).select('order').lean();
         const nextOrder = (last && (last as any).order >= 0) ? ((last as any).order + 1) : 0;
 
         const banner = new Banner({
-            imageKey,
+            imageKey: normalizedImageUrl,
             fileSize: fileSize || 0,
             width: width || 0,
             height: height || 0,
@@ -84,7 +106,11 @@ export const createBanner = async (req: Request, res: Response) => {
 export const updateBanner = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const update = req.body;
+        const update = { ...req.body };
+
+        if (update.imageKey) {
+            update.imageKey = normalizeBannerImageValue(String(update.imageKey));
+        }
 
         const banner = await Banner.findByIdAndUpdate(id, update, { new: true });
 
@@ -138,11 +164,11 @@ export const deleteBanner = async (req: Request, res: Response) => {
         // Delete the image object from AWS S3
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
         try {
+            const key = getImageKeyFromUrl(banner.imageKey);
             await s3.send(new DeleteObjectCommand({
                 Bucket: bucket,
-                Key: banner.imageKey
+                Key: key
             }));
-            console.log(`Deleted S3 object: ${banner.imageKey}`);
         } catch (s3Error) {
             console.error('Failed to delete banner image from S3:', s3Error);
         }

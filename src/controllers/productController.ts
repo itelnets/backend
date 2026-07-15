@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import Product from '../models/Product';
-import { S3Client, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 const s3 = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',
@@ -13,12 +12,30 @@ const s3 = new S3Client({
 
 const getPublicUrl = (key: string) => {
     if (!key) return key;
-    // If it's already a full URL, return it
     if (key.startsWith('http')) return key;
 
     const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
     const region = process.env.AWS_REGION || 'us-east-1';
     return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+};
+
+const getImageKeyFromUrl = (urlOrKey: string) => {
+    if (!urlOrKey) return urlOrKey;
+    let key = String(urlOrKey);
+
+    if (key.includes('?')) {
+        key = key.split('?')[0];
+    }
+    if (key.includes('.amazonaws.com/')) {
+        key = key.split('.amazonaws.com/')[1];
+    }
+
+    return key;
+};
+
+const normalizeImageValue = (urlOrKey: string) => {
+    const value = String(urlOrKey);
+    return value.startsWith('http') ? value : getPublicUrl(getImageKeyFromUrl(value));
 };
 
 const processProductForResponse = async (product: any) => {
@@ -57,7 +74,17 @@ export const getProductById = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
     try {
-        const product = new Product(req.body);
+        const productData: any = { ...req.body };
+
+        if (req.body.images !== undefined) {
+            if (Array.isArray(req.body.images)) {
+                productData.images = req.body.images.map((img: any) => normalizeImageValue(String(img)));
+            } else if (typeof req.body.images === 'string') {
+                productData.images = [normalizeImageValue(req.body.images)];
+            }
+        }
+
+        const product = new Product(productData);
         const createdProduct = await product.save();
         res.status(201).json(createdProduct);
     } catch (error) {
@@ -83,14 +110,18 @@ export const updateProduct = async (req: Request, res: Response) => {
         const product = await Product.findById(req.params.id);
         if (product) {
             // Find images that were removed in the edit
-            const oldImages = (product.images || []).map(img => String(img));
+            const oldImageKeys = (product.images || []).map(img => getImageKeyFromUrl(String(img)));
             let newImages: string[] = [];
+            let newImageKeys: string[] = [];
+
             if (Array.isArray(req.body.images)) {
-                newImages = req.body.images.map((img: any) => extractKeyFromUrl(String(img)));
+                newImages = req.body.images.map((img: any) => normalizeImageValue(String(img)));
+                newImageKeys = req.body.images.map((img: any) => getImageKeyFromUrl(String(img)));
             } else if (typeof req.body.images === 'string') {
-                newImages = [extractKeyFromUrl(String(req.body.images))];
+                newImages = [normalizeImageValue(String(req.body.images))];
+                newImageKeys = [getImageKeyFromUrl(String(req.body.images))];
             }
-            const imagesToDelete = oldImages.filter(img => !newImages.includes(img));
+            const imagesToDelete = oldImageKeys.filter(imgKey => !newImageKeys.includes(imgKey));
 
             // Delete removed images from S3
             if (imagesToDelete.length > 0) {
@@ -133,7 +164,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
             // Delete images from S3
             if (product.images && product.images.length > 0) {
                 const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-                const imageKeys = product.images.map(img => String(img));
+                const imageKeys = product.images.map(img => getImageKeyFromUrl(String(img)));
                 for (const imageKey of imageKeys) {
                     try {
                         const command = new DeleteObjectCommand({

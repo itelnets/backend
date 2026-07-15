@@ -89,14 +89,12 @@ router.get('/file/*', async (req: Request, res: Response) => {
         }
 
         const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-        
         // Generate a presigned URL (valid for 1 hour)
         const command = new GetObjectCommand({
             Bucket: bucket,
             Key: fileKey,
         });
         const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
-        
         res.redirect(signedUrl);
     } catch (error) {
         console.error('Error retrieving file:', error);

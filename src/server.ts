@@ -7,6 +7,8 @@ import productRoutes from './routes/product';
 import uploadRoutes from './routes/upload';
 import addressRoutes from './routes/addressRoutes';
 import bannerRoutes from './routes/banner';
+import cartRoutes from './routes/cart';
+import wishlistRoutes from './routes/wishlist';
 import { logger } from './middleware/logger';
 
 const app = express();
@@ -35,6 +37,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/banners', bannerRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
