@@ -4,6 +4,8 @@ export interface IAddress extends Document {
     userId: mongoose.Types.ObjectId;
     fullName: string;
     addressLine1: string;
+    addressLine2?: string;
+    landmark?: string;
     city: string;
     state: string;
     zip: string;
@@ -22,6 +24,8 @@ const AddressSchema: Schema = new Schema(
         },
         fullName: { type: String, required: true },
         addressLine1: { type: String, required: true },
+        addressLine2: { type: String },
+        landmark: { type: String },
         city: { type: String, required: true },
         state: { type: String, required: true },
         zip: { type: String, required: true },

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User';
+import Admin from '../models/Admin';
 import { generateToken } from '../utils/jwt';
 import { generateOTP, isOTPExpired } from '../utils/otp';
 import { sendEmailOTP, sendVerificationSuccessEmail, sendPasswordResetLink, sendPasswordResetSuccessEmail } from '../utils/emailOtp';
@@ -267,5 +268,49 @@ export const resetPassword = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('Reset password error:', error);
         res.status(500).json({ message: 'Failed to reset password. Please try again later.' });
+    }
+};
+
+export const adminLogin = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
+
+        if (!admin) {
+            return res.status(401).json({ message: 'Invalid admin credentials' });
+        }
+
+        const isMatch = await bcrypt.compare(password, admin.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid admin credentials' });
+        }
+
+        if (admin.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied. Only admin can access.' });
+        }
+
+        const token = generateToken({
+            userId: admin._id.toString(),
+            email: admin.email,
+            role: admin.role,
+        });
+
+        res.status(200).json({
+            _id: admin._id,
+            firstName: admin.firstName,
+            lastName: admin.lastName,
+            email: admin.email,
+            role: admin.role,
+            token,
+            message: 'Admin login successful',
+        });
+    } catch (error: any) {
+        console.error('Admin login error:', error);
+        res.status(500).json({ message: 'Login failed' });
     }
 };

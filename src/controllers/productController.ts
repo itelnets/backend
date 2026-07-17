@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import Product from '../models/Product';
+import Cart from '../models/Cart';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 const s3 = new S3Client({
@@ -109,40 +110,53 @@ export const updateProduct = async (req: Request, res: Response) => {
     try {
         const product = await Product.findById(req.params.id);
         if (product) {
-            // Find images that were removed in the edit
-            const oldImageKeys = (product.images || []).map(img => getImageKeyFromUrl(String(img)));
-            let newImages: string[] = [];
-            let newImageKeys: string[] = [];
+            if (req.body.images !== undefined) {
+                // Find images that were removed in the edit
+                const oldImageKeys = (product.images || []).map(img => getImageKeyFromUrl(String(img)));
+                let newImages: string[] = [];
+                let newImageKeys: string[] = [];
 
-            if (Array.isArray(req.body.images)) {
-                newImages = req.body.images.map((img: any) => normalizeImageValue(String(img)));
-                newImageKeys = req.body.images.map((img: any) => getImageKeyFromUrl(String(img)));
-            } else if (typeof req.body.images === 'string') {
-                newImages = [normalizeImageValue(String(req.body.images))];
-                newImageKeys = [getImageKeyFromUrl(String(req.body.images))];
-            }
-            const imagesToDelete = oldImageKeys.filter(imgKey => !newImageKeys.includes(imgKey));
+                if (Array.isArray(req.body.images)) {
+                    newImages = req.body.images.map((img: any) => normalizeImageValue(String(img)));
+                    newImageKeys = req.body.images.map((img: any) => getImageKeyFromUrl(String(img)));
+                } else if (typeof req.body.images === 'string') {
+                    newImages = [normalizeImageValue(String(req.body.images))];
+                    newImageKeys = [getImageKeyFromUrl(String(req.body.images))];
+                }
+                const imagesToDelete = oldImageKeys.filter(imgKey => !newImageKeys.includes(imgKey));
 
-            // Delete removed images from S3
-            if (imagesToDelete.length > 0) {
-                const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-                for (const imageKey of imagesToDelete) {
-                    try {
-                        const command = new DeleteObjectCommand({
-                            Bucket: bucket,
-                            Key: imageKey
-                        });
-                        await s3.send(command);
-                    } catch (s3Error) {
-                        console.error(`Failed to delete orphaned image ${imageKey} from S3:`, s3Error);
+                // Delete removed images from S3
+                if (imagesToDelete.length > 0) {
+                    const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
+                    for (const imageKey of imagesToDelete) {
+                        try {
+                            const command = new DeleteObjectCommand({
+                                Bucket: bucket,
+                                Key: imageKey
+                            });
+                            await s3.send(command);
+                        } catch (s3Error) {
+                            console.error(`Failed to delete orphaned image ${imageKey} from S3:`, s3Error);
+                        }
                     }
+                }
+                req.body.images = newImages; // so product.set(req.body) uses the normalized images
+            }
+
+            if (req.body.isActive === false && product.isActive !== false) {
+                // Check if any user has this product in their active cart
+                const cartCount = await Cart.countDocuments({
+                    productId: product._id,
+                    isSavedForLater: false,
+                    isSold: false
+                });
+
+                if (cartCount > 0) {
+                    return res.status(400).json({ message: 'Item already in cart' });
                 }
             }
 
             product.set(req.body);
-            if (req.body.images !== undefined) {
-                product.images = newImages;
-            }
             if (req.body.isActive !== undefined) {
                 product.isActive = req.body.isActive;
             }

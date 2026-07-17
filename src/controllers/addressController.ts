@@ -24,7 +24,7 @@ export const getAddresses = async (req: AuthRequest, res: Response): Promise<voi
 // @access  Private
 export const createAddress = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { fullName, addressLine1, city, state, zip, phone, isDefault } = req.body;
+        const { fullName, addressLine1, addressLine2, landmark, city, state, zip, phone, isDefault } = req.body;
 
         // If setting as default, unset other defaults
         if (isDefault) {
@@ -38,6 +38,8 @@ export const createAddress = async (req: AuthRequest, res: Response): Promise<vo
             userId: req.user.userId,
             fullName,
             addressLine1,
+            addressLine2,
+            landmark,
             city,
             state,
             zip,
@@ -58,7 +60,7 @@ export const createAddress = async (req: AuthRequest, res: Response): Promise<vo
 // @access  Private
 export const updateAddress = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { fullName, addressLine1, city, state, zip, phone, isDefault } = req.body;
+        const { fullName, addressLine1, addressLine2, landmark, city, state, zip, phone, isDefault } = req.body;
 
         const address = await Address.findOne({ _id: req.params.id, userId: req.user.userId });
 
@@ -76,6 +78,8 @@ export const updateAddress = async (req: AuthRequest, res: Response): Promise<vo
 
         address.fullName = fullName || address.fullName;
         address.addressLine1 = addressLine1 || address.addressLine1;
+        if (addressLine2 !== undefined) address.addressLine2 = addressLine2;
+        if (landmark !== undefined) address.landmark = landmark;
         address.city = city || address.city;
         address.state = state || address.state;
         address.zip = zip || address.zip;

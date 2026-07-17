@@ -108,8 +108,28 @@ export const updateBanner = async (req: Request, res: Response) => {
         const { id } = req.params;
         const update = { ...req.body };
 
+        const existingBanner = await Banner.findById(id);
+        if (!existingBanner) {
+            return res.status(404).json({ message: 'Banner not found' });
+        }
+
         if (update.imageKey) {
-            update.imageKey = normalizeBannerImageValue(String(update.imageKey));
+            const normalizedNewImageKey = normalizeBannerImageValue(String(update.imageKey));
+
+            // If the image is being changed, delete the old one from S3
+            if (existingBanner.imageKey && existingBanner.imageKey !== normalizedNewImageKey) {
+                const bucket = process.env.AWS_S3_BUCKET_NAME;
+                const oldKey = getImageKeyFromUrl(existingBanner.imageKey);
+                try {
+                    await s3.send(new DeleteObjectCommand({
+                        Bucket: bucket,
+                        Key: oldKey
+                    }));
+                } catch (s3Error) {
+                    console.error('Failed to delete old banner image from S3:', s3Error);
+                }
+            }
+            update.imageKey = normalizedNewImageKey;
         }
 
         const banner = await Banner.findByIdAndUpdate(id, update, { new: true });
