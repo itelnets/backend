@@ -49,7 +49,7 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const { search, brand, categories, inStock, minPrice, maxPrice, sort } = req.query;
+        const { search, brand, categories, inStock, minPrice, maxPrice, sort, rating } = req.query;
         let query: any = {};
         
         if (search) {
@@ -72,6 +72,11 @@ export const getProducts = async (req: Request, res: Response) => {
             query.price = {};
             if (minPrice) query.price.$gte = Number(minPrice);
             if (maxPrice) query.price.$lte = Number(maxPrice);
+        }
+
+        if (rating) {
+            if (rating === '4 Stars & Up') query.rating = { $gte: 4 };
+            else if (rating === '3 Stars & Up') query.rating = { $gte: 3 };
         }
 
         let sortQuery: any = { order: 1, createdAt: -1 };
