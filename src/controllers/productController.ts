@@ -49,7 +49,7 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const { search, brand, categories, inStock, minPrice, maxPrice, sort, rating } = req.query;
+        const { search, brand, categories, inStock, sort, priceRanges, ratings } = req.query;
         let query: any = {};
         
         if (search) {
@@ -57,26 +57,48 @@ export const getProducts = async (req: Request, res: Response) => {
         }
         
         if (brand) {
-            query.brand = { $in: (brand as string).split(',') };
+            query.brand = { $in: (brand as string).split('|') };
         }
         
         if (categories) {
-            query.categories = { $in: (categories as string).split(',') };
+            query.categories = { $in: (categories as string).split('|') };
         }
         
         if (inStock === 'true') {
             query.inStock = { $regex: /^yes$/i }; // Assuming "Yes" is stored, or could be true if boolean
         }
 
-        if (minPrice || maxPrice) {
-            query.price = {};
-            if (minPrice) query.price.$gte = Number(minPrice);
-            if (maxPrice) query.price.$lte = Number(maxPrice);
+        if (priceRanges) {
+            const ranges = (priceRanges as string).split('|');
+            const discountedPriceExpr = { 
+                $multiply: [ 
+                    "$price", 
+                    { $subtract: [1, { $divide: [{ $ifNull: ["$discount", 0] }, 100] }] } 
+                ] 
+            };
+            
+            const priceQueries = ranges.map(range => {
+                if (range === 'Under ₹500') return { $expr: { $lte: [discountedPriceExpr, 500] } };
+                if (range === '₹500 - ₹1,000') return { $expr: { $and: [{ $gte: [discountedPriceExpr, 500] }, { $lte: [discountedPriceExpr, 1000] }] } };
+                if (range === 'Over ₹1,000') return { $expr: { $gte: [discountedPriceExpr, 1000] } };
+                return null;
+            }).filter(Boolean);
+
+            if (priceQueries.length > 0) {
+                query.$and = query.$and || [];
+                query.$and.push({ $or: priceQueries });
+            }
         }
 
-        if (rating) {
-            if (rating === '4 Stars & Up') query.rating = { $gte: 4 };
-            else if (rating === '3 Stars & Up') query.rating = { $gte: 3 };
+        if (ratings) {
+            const ratingArray = (ratings as string).split('|');
+            let minRatingReq = 5;
+            if (ratingArray.includes('3 Stars & Up')) minRatingReq = 3;
+            else if (ratingArray.includes('4 Stars & Up')) minRatingReq = 4;
+            
+            if (minRatingReq < 5) {
+                query.rating = { $gte: minRatingReq };
+            }
         }
 
         let sortQuery: any = { order: 1, createdAt: -1 };
