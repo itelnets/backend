@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IReview extends Document {
     user: mongoose.Types.ObjectId;
-    product: string;
+    productId: string;
     rating: number;
     comment: string;
     isPositive: boolean;
@@ -18,7 +18,7 @@ const ReviewSchema: Schema = new Schema(
             ref: 'User',
             required: true,
         },
-        product: {
+        productId: {
             type: String,
             required: true,
         },
@@ -48,6 +48,6 @@ const ReviewSchema: Schema = new Schema(
 );
 
 // Prevent a user from submitting more than one review per product
-ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
+ReviewSchema.index({ user: 1, productId: 1 }, { unique: true });
 
 export default mongoose.model<IReview>('Review', ReviewSchema);

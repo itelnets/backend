@@ -7,6 +7,10 @@ export interface IProduct extends Document {
     discount: number;
     images: string[];
     type?: string;
+    categories?: string[];
+    rating?: number;
+    numReviews?: number;
+    reviews?: { userId: mongoose.Types.ObjectId; rating: number }[];
     overview?: string;
     specifications?: { key: string; value: string }[];
     suggestedUse?: string;
@@ -33,6 +37,15 @@ const productSchema = new Schema<IProduct>(
         discount: { type: Number, default: 0 },
         images: { type: [String], default: [] },
         type: { type: String },
+        categories: { type: [String], default: [] },
+        rating: { type: Number, default: 0 },
+        numReviews: { type: Number, default: 0 },
+        reviews: [
+            {
+                userId: { type: Schema.Types.ObjectId, ref: 'User' },
+                rating: { type: Number, required: true }
+            }
+        ],
         overview: { type: String },
         specifications: [
             {

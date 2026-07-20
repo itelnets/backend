@@ -49,12 +49,54 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const products = await Product.find({}).sort({ order: 1, createdAt: -1 });
+        const { search, brand, categories, inStock, minPrice, maxPrice, sort } = req.query;
+        let query: any = {};
+        
+        if (search) {
+            query.name = { $regex: search as string, $options: 'i' };
+        }
+        
+        if (brand) {
+            query.brand = { $in: (brand as string).split(',') };
+        }
+        
+        if (categories) {
+            query.categories = { $in: (categories as string).split(',') };
+        }
+        
+        if (inStock === 'true') {
+            query.inStock = { $regex: /^yes$/i }; // Assuming "Yes" is stored, or could be true if boolean
+        }
+
+        if (minPrice || maxPrice) {
+            query.price = {};
+            if (minPrice) query.price.$gte = Number(minPrice);
+            if (maxPrice) query.price.$lte = Number(maxPrice);
+        }
+
+        let sortQuery: any = { order: 1, createdAt: -1 };
+        if (sort === 'Price: Low to High') sortQuery = { price: 1 };
+        if (sort === 'Price: High to Low') sortQuery = { price: -1 };
+        if (sort === 'Newest') sortQuery = { createdAt: -1 };
+        if (sort === 'Top Rated') sortQuery = { rating: -1 };
+        if (sort === 'Best sellers') sortQuery = { bestSeller: -1 }; // Or however we track best sellers
+
+        const products = await Product.find(query).sort(sortQuery);
         const processedProducts = await Promise.all(products.map(processProductForResponse));
         res.status(200).json(processedProducts);
     } catch (error) {
         console.error('Error fetching products:', error);
         res.status(500).json({ message: 'Server error fetching products' });
+    }
+};
+
+export const getFilters = async (req: Request, res: Response) => {
+    try {
+        const brands = await Product.distinct('brand', { brand: { $ne: null } });
+        res.status(200).json({ brands: brands.filter(Boolean) });
+    } catch (error) {
+        console.error('Error fetching filters:', error);
+        res.status(500).json({ message: 'Server error fetching filters' });
     }
 };
 

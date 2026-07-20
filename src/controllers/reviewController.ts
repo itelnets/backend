@@ -1,12 +1,25 @@
 import { Request, Response } from 'express';
 import Review from '../models/Review';
 import mongoose from 'mongoose';
+import Product from '../models/Product';
+
+const updateProductRating = async (productId: string) => {
+    const reviewDocs = await Review.find({ productId });
+    const numReviews = reviewDocs.length;
+    let rating = 0;
+    if (numReviews > 0) {
+        const sum = reviewDocs.reduce((acc, review) => acc + review.rating, 0);
+        rating = Number((sum / numReviews).toFixed(1));
+    }
+    const reviews = reviewDocs.map(r => ({ userId: r.user, rating: r.rating }));
+    await Product.findByIdAndUpdate(productId, { rating, numReviews, reviews });
+};
 
 export const getReviews = async (req: Request, res: Response) => {
     try {
         const { id: productId } = req.params;
 
-        const reviews = await Review.find({ product: productId })
+        const reviews = await Review.find({ productId })
             .populate('user', 'email name')
             .sort({ createdAt: -1 });
 
@@ -58,19 +71,21 @@ export const createReview = async (req: Request, res: Response) => {
         }
 
         // Check if user already reviewed
-        const existingReview = await Review.findOne({ user: userId, product: productId });
+        const existingReview = await Review.findOne({ user: userId, productId });
         if (existingReview) {
             return res.status(400).json({ message: 'You have already reviewed this product' });
         }
 
         const review = await Review.create({
             user: userId,
-            product: productId,
+            productId,
             rating,
             comment,
             isPositive: isPositive ?? (rating >= 3),
             tags: tags || [],
         });
+
+        await updateProductRating(productId);
 
         res.status(201).json({ message: 'Review created successfully', review });
     } catch (error: any) {
@@ -95,7 +110,7 @@ export const updateReview = async (req: Request, res: Response) => {
 
         const { rating, comment, isPositive, tags } = req.body;
 
-        const review = await Review.findOne({ user: userId, product: productId });
+        const review = await Review.findOne({ user: userId, productId });
         if (!review) {
             return res.status(404).json({ message: 'Review not found' });
         }
@@ -110,6 +125,7 @@ export const updateReview = async (req: Request, res: Response) => {
         }
 
         await review.save();
+        await updateProductRating(productId);
 
         res.status(200).json({ message: 'Review updated successfully', review });
     } catch (error) {
