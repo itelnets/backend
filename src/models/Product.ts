@@ -21,7 +21,6 @@ export interface IProduct extends Document {
     brand?: string;
     manufacturer?: string;
     inStock?: string;
-    packageQuantity?: string;
     bestSeller?: string;
     order?: number;
     // Per-user lists (store user ObjectIds)
@@ -61,7 +60,6 @@ const productSchema = new Schema<IProduct>(
         brand: { type: String },
         manufacturer: { type: String },
         inStock: { type: String },
-        packageQuantity: { type: String },
         bestSeller: { type: String },
         order: { type: Number, default: 0 },
         savedBy: { type: [Schema.Types.ObjectId], ref: 'User', default: [] },

@@ -49,13 +49,17 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const { search, brand, categories, inStock, sort, priceRanges, ratings } = req.query;
+        const { search, brand, categories, inStock, sort, priceRanges, ratings, type } = req.query;
         let query: any = {};
         
         if (search) {
             query.name = { $regex: search as string, $options: 'i' };
         }
         
+        if (type) {
+            query.type = type as string;
+        }
+
         if (brand) {
             query.brand = { $in: (brand as string).split('|') };
         }
@@ -119,8 +123,13 @@ export const getProducts = async (req: Request, res: Response) => {
 
 export const getFilters = async (req: Request, res: Response) => {
     try {
-        const brands = await Product.distinct('brand', { brand: { $ne: null } });
-        res.status(200).json({ brands: brands.filter(Boolean) });
+        const { type } = req.query;
+        let query: any = { brand: { $ne: null } };
+        if (type) {
+            query.type = type as string;
+        }
+        const brands = await Product.distinct('brand', query);
+        res.status(200).json({ brands: brands.filter(Boolean).sort() });
     } catch (error) {
         console.error('Error fetching filters:', error);
         res.status(500).json({ message: 'Server error fetching filters' });
