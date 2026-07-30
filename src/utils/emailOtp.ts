@@ -172,7 +172,7 @@ export const sendPasswordResetSuccessEmail = async (email: string): Promise<void
         await transporter.sendMail({
             from: `"Itelents" <${emailUser}>`,
             to: email,
-            subject: 'Your Password Has Been Reset Successfully',
+            subject: 'Your password has been reset successfully',
             html: `
                 <div style="font-family: Arial, sans-serif; color: #374151; line-height: 1.6;">
                     <p>Dear Customer,</p>
