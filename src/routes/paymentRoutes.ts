@@ -162,7 +162,7 @@ router.post('/refund', authenticate, async (req: any, res: any) => {
         if (req.user.role !== 'admin') {
             return res.status(403).json({ message: 'Not authorized as admin' });
         }
-        
+
         const { orderId, amount } = req.body; // Amount is optional for partial refund
 
         const order = await Order.findById(orderId);
@@ -180,16 +180,32 @@ router.post('/refund', authenticate, async (req: any, res: any) => {
             refundOptions.amount = Math.round(Number(amount) * 100);
         }
 
-        const refund = await razorpay.payments.refund(order.razorpayPaymentId, refundOptions);
+        let refund;
+        try {
+            refund = await razorpay.payments.refund(order.razorpayPaymentId, refundOptions);
+        } catch (err: any) {
+            if (err?.error?.description === 'The payment has been fully refunded already') {
+                order.status = 'Refunded';
+                order.refundStatus = 'processed';
+                await order.save();
+                return res.json({ message: 'Payment was already refunded on Razorpay. Status synced.', status: 'Refunded' });
+            }
+            throw err; // Rethrow other errors to the main catch block
+        }
 
         let newStatus = 'Refund Initiated';
-        if (refund.status === 'processed') {
+        let newRefundStatus = 'pending';
+        
+        if (refund && refund.status === 'processed') {
             newStatus = 'Refunded';
-        } else if (refund.status === 'failed') {
-            newStatus = 'Refund Initiated';
+            newRefundStatus = 'processed';
+        } else if (refund && refund.status === 'failed') {
+            newStatus = 'Refund Failed';
+            newRefundStatus = 'failed';
         }
 
         order.status = newStatus as any;
+        order.refundStatus = newRefundStatus as any;
         const updatedOrder = await order.save();
 
         if (newStatus === 'Refunded' && updatedOrder.orderItems && updatedOrder.orderItems.length > 0) {
@@ -286,28 +302,42 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: a
         }
 
         if (event === 'refund.processed') {
-            const refund = payload.refund.entity;
-            const paymentId = refund.payment_id;
+            try {
+                const refund = payload.refund.entity;
+                const paymentId = refund.payment_id;
 
-            const order = await Order.findOne({ razorpayPaymentId: paymentId });
-            if (order && order.status !== 'Refunded') {
-                order.status = 'Refunded';
-                await order.save();
+                const order = await Order.findOne({ razorpayPaymentId: paymentId });
+                if (order && order.status !== 'Refunded') {
+                    order.status = 'Refunded';
+                    order.refundStatus = 'processed';
+                    await order.save();
 
-                // Decrement product sales since the sale was reversed
-                if (order.orderItems && order.orderItems.length > 0) {
-                    for (const item of order.orderItems) {
-                        await Product.findByIdAndUpdate(item.product, {
-                            $inc: { salesCount: -item.qty }
-                        });
+                    // Decrement product sales since the sale was reversed
+                    if (order.orderItems && order.orderItems.length > 0) {
+                        for (const item of order.orderItems) {
+                            await Product.findByIdAndUpdate(item.product, {
+                                $inc: { salesCount: -item.qty }
+                            });
+                        }
                     }
+                    logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refunded & Sales Decremented');
                 }
-                logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refunded & Sales Decremented');
+            } catch (e) {
+                console.error('Webhook refund.processed Error:', e);
             }
         }
 
         if (event === 'refund.failed') {
-            logWithTime('POST /api/payment/webhook - [Webhook] Refund Failed');
+            const refund = payload.refund.entity;
+            const paymentId = refund.payment_id;
+
+            const order = await Order.findOne({ razorpayPaymentId: paymentId });
+            if (order && order.status !== 'Refund Failed') {
+                order.status = 'Refund Failed';
+                order.refundStatus = 'failed';
+                await order.save();
+                logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refund Failed');
+            }
         }
 
         logWithTime(`POST /api/payment/webhook - [Webhook] Successfully processed event: ${event}`);

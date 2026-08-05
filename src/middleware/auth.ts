@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JWTPayload } from '../utils/jwt';
+import User from '../models/User';
+import Admin from '../models/Admin';
 
 // Extend Express Request interface to include user
 declare global {
@@ -10,7 +12,7 @@ declare global {
     }
 }
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,6 +21,17 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 
         const token = authHeader.split(' ')[1];
         const decoded = verifyToken(token);
+
+        // Verify user still exists and isn't deleted
+        let account: any = await User.findById(decoded.userId);
+        
+        if (!account && decoded.role === 'admin') {
+            account = await Admin.findById(decoded.userId);
+        }
+
+        if (!account || account.isDeleted) {
+            return res.status(401).json({ message: 'Your account has been deleted' });
+        }
 
         req.user = decoded;
         next();

@@ -12,6 +12,7 @@ export interface IUser extends Document {
     otpExpiresAt?: Date;
     resetPasswordToken?: string;
     resetPasswordExpiresAt?: Date;
+    isDeleted: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -51,6 +52,10 @@ const UserSchema: Schema = new Schema(
             default: 'customer',
         },
         isEmailVerified: {
+            type: Boolean,
+            default: false,
+        },
+        isDeleted: {
             type: Boolean,
             default: false,
         },

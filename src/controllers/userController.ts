@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import User from '../models/User';
 import Address from '../models/Address';
 
@@ -87,7 +88,7 @@ export const requestEmailChange = async (req: Request, res: Response) => {
         // Check if new email is already in use by a verified user
         const existingUser = await User.findOne({ email: newEmail });
         if (existingUser && existingUser.isEmailVerified) {
-            return res.status(400).json({ message: 'Email is already registered to another account' });
+            return res.status(400).json({ message: 'Email is already registered' });
         }
 
         const user = await User.findById(userId);
@@ -152,7 +153,7 @@ export const verifyEmailChange = async (req: Request, res: Response) => {
         user.otp = undefined;
         user.otpExpiresAt = undefined;
         user.isEmailVerified = true;
-        
+
         const updatedUser = await user.save();
 
         res.status(200).json({
@@ -169,5 +170,153 @@ export const verifyEmailChange = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Verify email change error:', error);
         res.status(500).json({ message: 'Failed to verify and update email' });
+    }
+};
+
+export const getAllUsersAdmin = async (req: Request, res: Response) => {
+    try {
+        if (req.user?.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized as admin' });
+        }
+
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const search = req.query.search as string;
+
+        const skip = (page - 1) * limit;
+
+        let matchStage: any = {};
+        if (search) {
+            matchStage = {
+                $or: [
+                    { name: { $regex: search, $options: 'i' } },
+                    { email: { $regex: search, $options: 'i' } }
+                ]
+            };
+            if (/^[0-9a-fA-F]{24}$/.test(search)) {
+                matchStage.$or.push({ _id: new mongoose.Types.ObjectId(search) });
+            }
+        }
+
+        const aggregationPipeline: any[] = [
+            { $match: matchStage },
+            {
+                $lookup: {
+                    from: 'orders',
+                    localField: '_id',
+                    foreignField: 'user',
+                    as: 'orders'
+                }
+            },
+            {
+                $addFields: {
+                    totalOrders: { $size: '$orders' },
+                    successOrders: {
+                        $size: {
+                            $filter: {
+                                input: '$orders',
+                                as: 'order',
+                                cond: {
+                                    $in: ['$$order.status', ['Captured', 'Shipped', 'Delivered']]
+                                }
+                            }
+                        }
+                    },
+                    returnCount: {
+                        $size: {
+                            $filter: {
+                                input: '$orders',
+                                as: 'order',
+                                cond: {
+                                    $in: ['$$order.status', ['Refund Requested', 'Refund Initiated', 'Refunded', 'Refund Failed']]
+                                }
+                            }
+                        }
+                    },
+                    failedOrders: {
+                        $size: {
+                            $filter: {
+                                input: '$orders',
+                                as: 'order',
+                                cond: {
+                                    $in: ['$$order.status', ['Cancelled', 'Pending']]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    orders: 0 // Remove the full orders array from the final output
+                }
+            },
+            { $sort: { createdAt: -1 } },
+            {
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [{ $skip: skip }, { $limit: limit }]
+                }
+            }
+        ];
+
+        const results = await User.aggregate(aggregationPipeline);
+
+        const totalUsers = results[0].metadata[0] ? results[0].metadata[0].total : 0;
+        const users = results[0].data;
+
+        res.json({
+            users,
+            page,
+            totalPages: Math.ceil(totalUsers / limit),
+            totalUsers
+        });
+    } catch (error) {
+        console.error('Get all users admin error:', error);
+        res.status(500).json({ message: 'Failed to fetch users' });
+    }
+};
+
+// @desc    Delete user profile (soft delete)
+// @route   DELETE /api/users/profile
+// @access  Private
+export const deleteUserProfile = async (req: Request, res: Response): Promise<void> => {
+    try {
+        // @ts-ignore
+        const user = await User.findById(req.user.userId);
+
+        if (user) {
+            user.isDeleted = true;
+            await user.save();
+            res.json({ message: 'User deleted successfully' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Toggle user status (isDeleted) by admin
+// @route   PUT /api/users/admin/:id/status
+// @access  Private/Admin
+export const toggleUserStatus = async (req: Request, res: Response) => {
+    try {
+        if (req.user?.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized as admin' });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.isDeleted = req.body.isDeleted;
+        await user.save();
+
+        res.json({ message: 'User status updated successfully', user });
+    } catch (error) {
+        console.error('Toggle user status error:', error);
+        res.status(500).json({ message: 'Server Error' });
     }
 };

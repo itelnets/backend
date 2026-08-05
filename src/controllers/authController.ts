@@ -154,6 +154,11 @@ export const login = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
 
+        // Check if account is soft-deleted
+        if (user.isDeleted) {
+            return res.status(400).json({ message: 'Account already deleted' });
+        }
+
         // Bypass verification check for admin
         if (user.role !== 'admin' && !user.isEmailVerified) {
             return res.status(401).json({ message: 'Please verify your email first' });
@@ -202,6 +207,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         if (!user) {
             return res.status(404).json({ message: 'Email not registered' });
+        }
+
+        if (user.isDeleted) {
+            return res.status(400).json({ message: 'Account already deleted' });
         }
 
         if (!user.isEmailVerified) {

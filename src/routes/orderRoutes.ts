@@ -16,7 +16,7 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
         const skip = (page - 1) * limit;
         const status = req.query.status as string;
 
-        const query: any = { user: req.user.userId };
+        const query: any = { user: new mongoose.Types.ObjectId(req.user.userId) };
 
         if (status && status !== 'All' && status !== 'All Orders') {
             if (status === 'Success') {
@@ -48,7 +48,14 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
         const totalOrders = await Order.countDocuments(query);
         const totalPages = Math.ceil(totalOrders / limit);
 
-        res.json({ totalPages, currentPage: page, totalOrders, orders });
+        // Calculate total amount for all orders matching the query
+        const aggregationResult = await Order.aggregate([
+            { $match: query },
+            { $group: { _id: null, totalAmount: { $sum: "$totalPrice" } } }
+        ]);
+        const totalAmount = aggregationResult.length > 0 ? aggregationResult[0].totalAmount : 0;
+
+        res.json({ totalPages, currentPage: page, totalOrders, totalAmount, orders });
     } catch (error: any) {
         console.error('Fetch My Orders Error:', error);
         res.status(500).json({ message: 'Server Error' });
@@ -140,7 +147,8 @@ router.post('/:id/request-return', authenticate, async (req: any, res: any) => {
             return res.status(400).json({ message: `Cannot request return for order in ${order.status} status` });
         }
 
-        order.status = 'Return Requested';
+        order.status = 'Refund Requested';
+        order.refundStatus = 'requested';
         const updatedOrder = await order.save();
 
         res.json({ message: 'Return requested successfully', order: updatedOrder });
@@ -164,10 +172,15 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
         const skip = (page - 1) * limit;
         const status = req.query.status as string;
         const search = req.query.search as string;
+        const userId = req.query.userId as string;
 
         const query: any = {};
         if (status && status !== 'All') {
             query.status = status;
+        }
+
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            query.user = userId;
         }
 
         if (search) {

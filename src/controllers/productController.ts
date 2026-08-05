@@ -53,7 +53,21 @@ export const getProducts = async (req: Request, res: Response) => {
         let query: any = {};
         
         if (search) {
-            query.name = { $regex: search as string, $options: 'i' };
+            const searchStr = (search as string).trim();
+            const escapedSearch = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
+            // Create a fuzzy regex: 'raja' becomes 'r.*a.*j.*a'
+            const fuzzyRegex = escapedSearch.split('').join('.*');
+            
+            const searchQueries: any[] = [
+                { name: { $regex: fuzzyRegex, $options: 'i' } }
+            ];
+            
+            if (/^[0-9a-fA-F]{24}$/.test(searchStr)) {
+                searchQueries.push({ _id: searchStr });
+            }
+            
+            query.$or = searchQueries;
         }
         
         if (type) {
