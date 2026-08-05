@@ -8,7 +8,7 @@ import User from '../models/User';
 
 const authLimiter = rateLimit({
     windowMs: 2 * 60 * 1000, // 2 minutes
-    max: 3, // Limit each IP+email to 5 requests per window
+    max: 5, // Limit each IP+email to 5 requests per window
     message: { message: 'Too many requests for this email, try after 2 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
