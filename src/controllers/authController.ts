@@ -61,6 +61,8 @@ export const register = async (req: Request, res: Response) => {
         const otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
         // Create or update unverified user
+        const clientIp = req.headers['x-forwarded-for'] ? (req.headers['x-forwarded-for'] as string).split(',')[0].trim() : req.ip || 'Unknown';
+
         if (existingUser) {
             existingUser.email = email;
             existingUser.mobileNumber = mobileNumber;
@@ -68,6 +70,7 @@ export const register = async (req: Request, res: Response) => {
             existingUser.isEmailVerified = false;
             existingUser.otp = otp;
             existingUser.otpExpiresAt = otpExpiresAt;
+            existingUser.ipAddress = clientIp;
             await existingUser.save();
         } else {
             await User.create({
@@ -78,16 +81,12 @@ export const register = async (req: Request, res: Response) => {
                 isEmailVerified: false,
                 otp,
                 otpExpiresAt,
+                ipAddress: clientIp,
             });
         }
 
-        // Send OTP via Email
-        const sent = await sendEmailOTP(email, otp);
-        if (!sent) {
-            return res.status(500).json({
-                message: 'Failed to send OTP email. Please try again',
-            });
-        }
+        // Send OTP via Email in background
+        sendEmailOTP(email, otp).catch(console.error);
 
         res.status(200).json({
             message: `OTP sent successfully.`,
@@ -151,7 +150,7 @@ export const login = async (req: Request, res: Response) => {
         const user = await User.findOne({ email: email.toLowerCase().trim() });
 
         if (!user) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+            return res.status(401).json({ message: 'Email not registered' });
         }
 
         // Check if account is soft-deleted
@@ -162,6 +161,11 @@ export const login = async (req: Request, res: Response) => {
         // Bypass verification check for admin
         if (user.role !== 'admin' && !user.isEmailVerified) {
             return res.status(401).json({ message: 'Please verify your email first' });
+        }
+
+        if (user.role === 'customer') {
+            const clientIp = req.headers['x-forwarded-for'] ? (req.headers['x-forwarded-for'] as string).split(',')[0].trim() : req.ip || 'Unknown';
+            User.updateOne({ _id: user._id }, { ipAddress: clientIp }).catch(console.error);
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -179,7 +183,7 @@ export const login = async (req: Request, res: Response) => {
             message: 'Login successfully!',
             token,
             email: user.email,
-            name: user.email,
+            name: user.name,
             user: {
                 id: user._id,
                 email: user.email,

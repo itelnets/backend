@@ -13,6 +13,9 @@ export interface IUser extends Document {
     resetPasswordToken?: string;
     resetPasswordExpiresAt?: Date;
     isDeleted: boolean;
+    ipAddress?: string;
+    latitude?: number;
+    longitude?: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -61,6 +64,18 @@ const UserSchema: Schema = new Schema(
         },
         otp: {
             type: String,
+            default: null,
+        },
+        ipAddress: {
+            type: String,
+            default: null,
+        },
+        latitude: {
+            type: Number,
+            default: null,
+        },
+        longitude: {
+            type: Number,
             default: null,
         },
         otpExpiresAt: {

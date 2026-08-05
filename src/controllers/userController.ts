@@ -48,6 +48,8 @@ export const updateProfile = async (req: Request, res: Response) => {
         if (user) {
             user.name = req.body.name !== undefined ? req.body.name : user.name;
             user.mobileNumber = req.body.mobileNumber !== undefined ? req.body.mobileNumber : user.mobileNumber;
+            user.latitude = req.body.latitude !== undefined ? req.body.latitude : user.latitude;
+            user.longitude = req.body.longitude !== undefined ? req.body.longitude : user.longitude;
 
             const updatedUser = await user.save();
 

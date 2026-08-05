@@ -14,6 +14,7 @@ import paymentRoutes from './routes/paymentRoutes';
 import { logger } from './middleware/logger';
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy for rate limiting (e.g., ngrok/load balancer)
 const PORT = process.env.PORT || 4000;
 
 // Middleware
