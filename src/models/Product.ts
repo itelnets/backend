@@ -26,6 +26,9 @@ export interface IProduct extends Document {
     // Per-user lists (store user ObjectIds)
     savedBy?: mongoose.Types.ObjectId[]; // wishlist users
     savedForLaterBy?: mongoose.Types.ObjectId[]; // users who saved this product for later
+    hsn?: string;
+    batchNo?: string;
+    expiredOn?: string;
 }
 
 const productSchema = new Schema<IProduct>(
@@ -63,7 +66,10 @@ const productSchema = new Schema<IProduct>(
         bestSeller: { type: String },
         order: { type: Number, default: 0 },
         savedBy: { type: [Schema.Types.ObjectId], ref: 'User', default: [] },
-        savedForLaterBy: { type: [Schema.Types.ObjectId], ref: 'User', default: [] }
+        savedForLaterBy: { type: [Schema.Types.ObjectId], ref: 'User', default: [] },
+        hsn: { type: String },
+        batchNo: { type: String },
+        expiredOn: { type: String }
     },
     { timestamps: true }
 );

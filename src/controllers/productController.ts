@@ -190,7 +190,7 @@ export const updateProduct = async (req: Request, res: Response) => {
         if (product) {
             if (req.body.images !== undefined) {
                 // Find images that were removed in the edit
-                const oldImageKeys = (product.images || []).map(img => getImageKeyFromUrl(String(img)));
+                const oldImageKeys = (product.images || []).map((img: any) => getImageKeyFromUrl(String(img)));
                 let newImages: string[] = [];
                 let newImageKeys: string[] = [];
 
@@ -201,7 +201,7 @@ export const updateProduct = async (req: Request, res: Response) => {
                     newImages = [normalizeImageValue(String(req.body.images))];
                     newImageKeys = [getImageKeyFromUrl(String(req.body.images))];
                 }
-                const imagesToDelete = oldImageKeys.filter(imgKey => !newImageKeys.includes(imgKey));
+                const imagesToDelete = oldImageKeys.filter((imgKey: any) => !newImageKeys.includes(imgKey));
 
                 // Delete removed images from S3
                 if (imagesToDelete.length > 0) {
@@ -256,7 +256,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
             // Delete images from S3
             if (product.images && product.images.length > 0) {
                 const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
-                const imageKeys = product.images.map(img => getImageKeyFromUrl(String(img)));
+                const imageKeys = product.images.map((img: any) => getImageKeyFromUrl(String(img)));
                 for (const imageKey of imageKeys) {
                     try {
                         const command = new DeleteObjectCommand({

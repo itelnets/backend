@@ -10,6 +10,7 @@ import bannerRoutes from './routes/banner';
 import cartRoutes from './routes/cart';
 import wishlistRoutes from './routes/wishlist';
 import userRoutes from './routes/userRoutes';
+import paymentRoutes from './routes/paymentRoutes';
 import { logger } from './middleware/logger';
 
 const app = express();
@@ -19,17 +20,21 @@ const PORT = process.env.PORT || 4000;
 app.use(logger);
 app.use(cors({
     origin: function (origin, callback) {
-        const defaultOrigins = ['http://localhost:3000', 'http://192.168.1.20:3000'];
-        const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : defaultOrigins;
-        if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.FRONTEND_URL === origin || process.env.ADMIN_URL === origin) {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+        if (!origin || allowedOrigins.includes(origin) || process.env.FRONTEND_URL === origin || process.env.ADMIN_URL === origin) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            // console.warn(`[CORS] Allowing unknown origin for webhooks: ${origin}`);
+            callback(null, true);
         }
     },
     credentials: true
 }));
-app.use(express.json());
+app.use(express.json({
+    verify: (req: any, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
@@ -41,6 +46,10 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
+import orderRoutes from './routes/orderRoutes';
+
+app.use('/api/orders', orderRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

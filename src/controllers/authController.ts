@@ -210,7 +210,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         // Check if a reset link was recently sent
         if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt > new Date()) {
-            return res.status(400).json({ message: 'Password reset link already sent. Please try after 2 minutes' });
+            return res.status(409).json({ message: 'Password reset link already sent. Please try after 2 minutes' });
         }
 
         // Generate a cryptographically secure token
