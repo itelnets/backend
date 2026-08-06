@@ -49,73 +49,82 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const { search, brand, categories, inStock, sort, priceRanges, ratings, type } = req.query;
-        let query: any = {};
-        
+        const { sort, inStock, brand, minPrice, maxPrice, ratings, search, type, categories } = req.query;
+
+        let query: any = { isActive: true }; // Assuming only active products
+
         if (search) {
             const searchStr = (search as string).trim();
             const escapedSearch = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            
+
             // Create a fuzzy regex: 'raja' becomes 'r.*a.*j.*a'
             const fuzzyRegex = escapedSearch.split('').join('.*');
-            
+
             const searchQueries: any[] = [
                 { name: { $regex: fuzzyRegex, $options: 'i' } }
             ];
-            
+
             if (/^[0-9a-fA-F]{24}$/.test(searchStr)) {
                 searchQueries.push({ _id: searchStr });
             }
-            
+
             query.$or = searchQueries;
         }
-        
+
         if (type) {
-            query.type = type as string;
+            query.type = new RegExp(`^${(type as string).trim()}$`, 'i');
         }
 
         if (brand) {
-            query.brand = { $in: (brand as string).split('|') };
+            query.brand = { $in: (brand as string).split(',') };
         }
-        
+
         if (categories) {
             query.categories = { $in: (categories as string).split('|') };
         }
-        
+
         if (inStock === 'true') {
             query.inStock = { $regex: /^yes$/i }; // Assuming "Yes" is stored, or could be true if boolean
         }
 
-        if (priceRanges) {
-            const ranges = (priceRanges as string).split('|');
-            const discountedPriceExpr = { 
-                $multiply: [ 
-                    "$price", 
-                    { $subtract: [1, { $divide: [{ $ifNull: ["$discount", 0] }, 100] }] } 
-                ] 
+        if (minPrice !== undefined || maxPrice !== undefined) {
+            const discountedPriceExpr = {
+                $multiply: [
+                    "$price",
+                    { $subtract: [1, { $divide: [{ $ifNull: ["$discount", 0] }, 100] }] }
+                ]
             };
-            
-            const priceQueries = ranges.map(range => {
-                if (range === 'Under ₹500') return { $expr: { $lte: [discountedPriceExpr, 500] } };
-                if (range === '₹500 - ₹1,000') return { $expr: { $and: [{ $gte: [discountedPriceExpr, 500] }, { $lte: [discountedPriceExpr, 1000] }] } };
-                if (range === 'Over ₹1,000') return { $expr: { $gte: [discountedPriceExpr, 1000] } };
-                return null;
-            }).filter(Boolean);
 
-            if (priceQueries.length > 0) {
+            const priceConditions: any[] = [];
+            if (minPrice !== undefined) {
+                priceConditions.push({ $gte: [discountedPriceExpr, parseFloat(minPrice as string)] });
+            }
+            if (maxPrice !== undefined) {
+                priceConditions.push({ $lte: [discountedPriceExpr, parseFloat(maxPrice as string)] });
+            }
+
+            if (priceConditions.length > 0) {
                 query.$and = query.$and || [];
-                query.$and.push({ $or: priceQueries });
+                query.$and.push({ $expr: priceConditions.length === 1 ? priceConditions[0] : { $and: priceConditions } });
             }
         }
 
         if (ratings) {
-            const ratingArray = (ratings as string).split('|');
-            let minRatingReq = 5;
-            if (ratingArray.includes('3 Stars & Up')) minRatingReq = 3;
-            else if (ratingArray.includes('4 Stars & Up')) minRatingReq = 4;
-            
-            if (minRatingReq < 5) {
-                query.rating = { $gte: minRatingReq };
+            const ratingArray = (ratings as string).split(',');
+            const ratingQueries = ratingArray.map(r => {
+                const num = parseInt(r);
+                if (!isNaN(num)) {
+                    // For 5 stars, just match >= 5
+                    if (num === 5) return { rating: { $gte: 5 } };
+                    // For others, match [num, num+1) e.g. 4 matches 4.0 to 4.9
+                    return { rating: { $gte: num, $lt: num + 1 } };
+                }
+                return null;
+            }).filter(Boolean);
+
+            if (ratingQueries.length > 0) {
+                query.$and = query.$and || [];
+                query.$and.push({ $or: ratingQueries });
             }
         }
 
@@ -128,6 +137,21 @@ export const getProducts = async (req: Request, res: Response) => {
 
         const products = await Product.find(query).sort(sortQuery);
         const processedProducts = await Promise.all(products.map(processProductForResponse));
+
+        if (req.query.includeFilters === 'true') {
+            // Get available brands for the base category query (ignoring current filter selections)
+            const filterQuery: any = { brand: { $ne: null } };
+            if (type) filterQuery.type = new RegExp(`^${(type as string).trim()}$`, 'i');
+            const brands = await Product.distinct('brand', filterQuery);
+
+            return res.status(200).json({
+                products: processedProducts,
+                filters: {
+                    brands: brands.filter(Boolean).sort()
+                }
+            });
+        }
+
         res.status(200).json(processedProducts);
     } catch (error) {
         console.error('Error fetching products:', error);
@@ -140,7 +164,7 @@ export const getFilters = async (req: Request, res: Response) => {
         const { type } = req.query;
         let query: any = { brand: { $ne: null } };
         if (type) {
-            query.type = type as string;
+            query.type = new RegExp(`^${(type as string).trim()}$`, 'i');
         }
         const brands = await Product.distinct('brand', query);
         res.status(200).json({ brands: brands.filter(Boolean).sort() });

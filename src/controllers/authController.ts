@@ -10,12 +10,12 @@ import crypto from 'crypto';
 
 export const register = async (req: Request, res: Response) => {
     try {
-        const { email, mobileNumber, password } = req.body;
+        const { name, email, mobileNumber, password } = req.body;
 
         // Validation
-        if (!email || !mobileNumber || !password) {
+        if (!name || !email || !mobileNumber || !password) {
             return res.status(400).json({
-                message: 'Email, mobile number, and password are required',
+                message: 'Name, email, mobile number, and password are required',
             });
         }
 
@@ -64,6 +64,7 @@ export const register = async (req: Request, res: Response) => {
         const clientIp = req.headers['x-forwarded-for'] ? (req.headers['x-forwarded-for'] as string).split(',')[0].trim() : req.ip || 'Unknown';
 
         if (existingUser) {
+            existingUser.name = name;
             existingUser.email = email;
             existingUser.mobileNumber = mobileNumber;
             existingUser.password = hashedPassword;
@@ -74,6 +75,7 @@ export const register = async (req: Request, res: Response) => {
             await existingUser.save();
         } else {
             await User.create({
+                name,
                 email,
                 mobileNumber,
                 password: hashedPassword,
