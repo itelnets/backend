@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer';
 import Order from '../models/Order';
 
 export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer> => {
@@ -170,6 +169,10 @@ export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer>
         </html>
     `;
 
+    // Use native dynamic import to bypass TypeScript compiling it to require()
+    const puppeteerModule = await new Function("return import('puppeteer')")();
+    const puppeteer = puppeteerModule.default;
+    
     const browser = await puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']

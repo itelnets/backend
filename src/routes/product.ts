@@ -1,14 +1,14 @@
 import express from 'express';
 import { getProducts, getProductById, createProduct, updateProduct, deleteProduct, reorderProducts, getFilters } from '../controllers/productController';
 import { getReviews, createReview, updateReview } from '../controllers/reviewController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, isAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
-router.route('/').get(getProducts).post(createProduct);
+router.route('/').get(getProducts).post(authenticate, isAdmin, createProduct);
 router.route('/filters').get(getFilters);
-router.route('/reorder').post(reorderProducts);
-router.route('/:id').get(getProductById).put(updateProduct).delete(deleteProduct);
+router.route('/reorder').post(authenticate, isAdmin, reorderProducts);
+router.route('/:id').get(getProductById).put(authenticate, isAdmin, updateProduct).delete(authenticate, isAdmin, deleteProduct);
 
 // Review routes
 router.route('/:id/reviews')

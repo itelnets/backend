@@ -132,8 +132,25 @@ export const verifyOTP = async (req: Request, res: Response) => {
         // Send Welcome/Success Email (background task)
         sendVerificationSuccessEmail(user.email).catch(console.error);
 
+        const token = generateToken({
+            userId: user._id.toString(),
+            email: user.email,
+            role: user.role,
+        });
+
         res.status(200).json({
             message: 'Registration successfully!',
+            token,
+            email: user.email,
+            name: user.name,
+            user: {
+                id: user._id,
+                email: user.email,
+                mobileNumber: user.mobileNumber,
+                role: user.role,
+                isEmailVerified: user.isEmailVerified,
+            },
+            role: user.role,
         });
     } catch (error: any) {
         console.error('Verify OTP error:', error);
@@ -229,7 +246,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
         }
 
         // Generate a cryptographically secure token
-        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetToken = crypto.randomBytes(128).toString('hex');
 
         // Save to user (expires in 2 minutes)
         user.resetPasswordToken = resetToken;
@@ -245,7 +262,18 @@ export const forgotPassword = async (req: Request, res: Response) => {
             return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
         }
 
-        res.status(200).json({ message: 'Password reset link sent successfully' });
+        res.status(200).json({ 
+            message: 'Password reset link sent successfully',
+            email: user.email,
+            token: resetToken,
+            user: {
+                id: user._id,
+                email: user.email,
+                mobileNumber: user.mobileNumber,
+                role: user.role,
+                isEmailVerified: user.isEmailVerified,
+            }
+        });
     } catch (error: any) {
         console.error('Forgot password error:', error);
         res.status(500).json({ message: 'Something went wrong. Please try again later.' });
@@ -279,7 +307,26 @@ export const resetPassword = async (req: Request, res: Response) => {
         // Send Success Email (background task)
         sendPasswordResetSuccessEmail(user.email).catch(console.error);
 
-        res.status(200).json({ message: 'Password has been reset successfully' });
+        const loginToken = generateToken({
+            userId: user._id.toString(),
+            email: user.email,
+            role: user.role,
+        });
+
+        res.status(200).json({
+            message: 'Password has been reset successfully',
+            token: loginToken,
+            email: user.email,
+            name: user.name,
+            user: {
+                id: user._id,
+                email: user.email,
+                mobileNumber: user.mobileNumber,
+                role: user.role,
+                isEmailVerified: user.isEmailVerified,
+            },
+            role: user.role,
+        });
     } catch (error: any) {
         console.error('Reset password error:', error);
         res.status(500).json({ message: 'Failed to reset password. Please try again later.' });

@@ -4,6 +4,7 @@ import multerS3 from 'multer-s3';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import path from 'path';
+import { authenticate, isAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -52,8 +53,8 @@ const upload = multer({
 
 // @route   POST /api/upload
 // @desc    Upload an image to S3 and return the Presigned URL + Key
-// @access  Public (Should be private in production)
-router.post('/', upload.single('image'), async (req: Request, res: Response) => {
+// @access  Private/Admin
+router.post('/', authenticate, isAdmin, upload.single('image'), async (req: Request, res: Response) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
@@ -95,6 +96,8 @@ router.get('/file/*', async (req: Request, res: Response) => {
             Key: fileKey,
         });
         const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        // Tell the browser to cache this redirect (and the resulting image) for 1 hour
+        res.setHeader('Cache-Control', 'public, max-age=3500');
         res.redirect(signedUrl);
     } catch (error) {
         console.error('Error retrieving file:', error);
