@@ -58,17 +58,26 @@ app.get('/api/health', (req, res) => {
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI as string)
+if (!MONGODB_URI) {
+    console.error('CRITICAL ERROR: MONGODB_URI environment variable is not defined!');
+} else {
+    // Serverless-friendly connection options
+    mongoose.connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000, // Fail fast if can't connect
+    })
     .then(() => {
-        console.log('Connected to MongoDB');
-        app.listen(PORT, () => {
-            console.log(`Server is running on http://localhost:${PORT}`);
-        });
+        console.log('Successfully connected to MongoDB');
+        // Only start the listener if we aren't in a serverless environment
+        if (process.env.NODE_ENV !== 'production' || process.env.IS_LOCAL) {
+            app.listen(PORT, () => {
+                console.log(`Server is running on http://localhost:${PORT}`);
+            });
+        }
     })
     .catch((error) => {
         console.error('MongoDB connection error:', error);
-        process.exit(1);
     });
+}
 
 export default app;
 
