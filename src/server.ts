@@ -21,20 +21,9 @@ const PORT = process.env.PORT || 4000;
 app.use(logger);
 
 app.use(cors({
-    origin: '*',
+    origin: true, // This dynamically reflects the request origin, allowing all origins while supporting credentials
+    credentials: true
 }));
-// app.use(cors({
-//     origin: function (origin, callback) {
-//         const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
-//         if (!origin || allowedOrigins.includes(origin) || process.env.FRONTEND_URL === origin || process.env.ADMIN_URL === origin) {
-//             callback(null, true);
-//         } else {
-//             // console.warn(`[CORS] Allowing unknown origin for webhooks: ${origin}`);
-//             callback(null, true);
-//         }
-//     },
-//     credentials: true
-// }));
 app.use(express.json({
     verify: (req: any, res, buf) => {
         req.rawBody = buf.toString();
