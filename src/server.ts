@@ -12,7 +12,9 @@ import wishlistRoutes from './routes/wishlist';
 import userRoutes from './routes/userRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import { logger } from './middleware/logger';
+import dns from 'dns';
 
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy for rate limiting (e.g., ngrok/load balancer)
 const PORT = process.env.PORT || 4000;
@@ -21,7 +23,15 @@ const PORT = process.env.PORT || 4000;
 app.use(logger);
 
 app.use(cors({
-    origin: true, // This allows ALL origins seamlessly
+    origin: function (origin, callback) {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+        if (!origin || allowedOrigins.includes(origin) || process.env.FRONTEND_URL === origin || process.env.ADMIN_URL === origin) {
+            callback(null, true);
+        } else {
+            // console.warn(`[CORS] Allowing unknown origin for webhooks: ${origin}`);
+            callback(null, true);
+        }
+    },
     credentials: true
 }));
 app.use(express.json({
@@ -45,11 +55,6 @@ import orderRoutes from './routes/orderRoutes';
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 
-// Root route to prevent 500 errors on Vercel base URL
-app.get('/', (req, res) => {
-    res.send('E-commerce Backend API is running...');
-});
-
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
@@ -58,26 +63,17 @@ app.get('/api/health', (req, res) => {
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-    console.error('CRITICAL ERROR: MONGODB_URI environment variable is not defined!');
-} else {
-    // Serverless-friendly connection options
-    mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 5000, // Fail fast if can't connect
-    })
+mongoose.connect(MONGODB_URI as string)
     .then(() => {
-        console.log('Successfully connected to MongoDB');
-        // Only start the listener if we aren't in a serverless environment
-        if (process.env.NODE_ENV !== 'production' || process.env.IS_LOCAL) {
-            app.listen(PORT, () => {
-                console.log(`Server is running on http://localhost:${PORT}`);
-            });
-        }
+        console.log('Connected to MongoDB');
+        app.listen(PORT, () => {
+            console.log(`Server is running on http://localhost:${PORT}`);
+        });
     })
     .catch((error) => {
         console.error('MongoDB connection error:', error);
+        process.exit(1);
     });
-}
 
 export default app;
 
