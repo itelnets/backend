@@ -32,6 +32,9 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/upload', uploadRoutes);
