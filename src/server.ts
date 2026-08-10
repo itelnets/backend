@@ -45,6 +45,11 @@ import orderRoutes from './routes/orderRoutes';
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 
+// Root route to prevent 500 errors on Vercel base URL
+app.get('/', (req, res) => {
+    res.send('E-commerce Backend API is running...');
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
