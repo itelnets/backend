@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 4000;
 app.use(logger);
 
 app.use(cors({
-    origin: true, // This dynamically reflects the request origin, allowing all origins while supporting credentials
+    origin: true, // This allows ALL origins seamlessly
     credentials: true
 }));
 app.use(express.json({
@@ -32,9 +32,6 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.get('/api/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/upload', uploadRoutes);
