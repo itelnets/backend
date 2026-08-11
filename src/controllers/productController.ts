@@ -49,9 +49,17 @@ const processProductForResponse = async (product: any) => {
 
 export const getProducts = async (req: Request, res: Response) => {
     try {
-        const { sort, inStock, brand, minPrice, maxPrice, ratings, search, type, categories } = req.query;
+        const { sort, inStock, brand, minPrice, maxPrice, ratings, search, type, categories, page, limit, includeFilters, isActive } = req.query;
 
-        let query: any = { isActive: true }; // Assuming only active products
+        let query: any = {};
+
+        if (isActive === 'all') {
+            // Admin requesting all products regardless of active status
+        } else if (isActive === 'false') {
+            query.isActive = false;
+        } else {
+            query.isActive = true;
+        }
 
         if (search) {
             const searchStr = (search as string).trim();
@@ -135,19 +143,57 @@ export const getProducts = async (req: Request, res: Response) => {
         if (sort === 'Top Rated') sortQuery = { rating: -1 };
         if (sort === 'Best sellers') sortQuery = { bestSeller: -1 }; // Or however we track best sellers
 
-        const products = await Product.find(query).sort(sortQuery);
+        const isPaginated = page !== undefined || limit !== undefined;
+
+        let productsQuery = Product.find(query).sort(sortQuery);
+
+        let totalProducts = 0;
+        let pageNum = 1;
+        let limitNum = 20;
+
+        if (isPaginated) {
+            pageNum = parseInt(page as string, 10) || 1;
+            limitNum = parseInt(limit as string, 10) || 20;
+            const skip = (pageNum - 1) * limitNum;
+
+            totalProducts = await Product.countDocuments(query);
+            productsQuery = productsQuery.skip(skip).limit(limitNum);
+        }
+
+        const products = await productsQuery;
         const processedProducts = await Promise.all(products.map(processProductForResponse));
 
-        if (req.query.includeFilters === 'true') {
+        let availableBrands: string[] = [];
+        if (includeFilters === 'true') {
             // Get available brands for the base category query (ignoring current filter selections)
             const filterQuery: any = { brand: { $ne: null } };
             if (type) filterQuery.type = new RegExp(`^${(type as string).trim()}$`, 'i');
             const brands = await Product.distinct('brand', filterQuery);
+            availableBrands = brands.filter(Boolean).sort();
+        }
 
+        if (isPaginated) {
+            const totalPages = Math.ceil(totalProducts / limitNum);
+            const responseData: any = {
+                page: pageNum,
+                totalPages,
+                totalProducts,
+                limit: limitNum,
+                products: processedProducts
+            };
+
+            if (includeFilters === 'true') {
+                responseData.filters = { brands: availableBrands };
+            }
+
+            return res.status(200).json(responseData);
+        }
+
+        if (includeFilters === 'true') {
             return res.status(200).json({
                 products: processedProducts,
                 filters: {
-                    brands: brands.filter(Boolean).sort()
+                    brands: availableBrands
                 }
             });
         }

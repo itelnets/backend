@@ -26,6 +26,12 @@ curl -X PUT http://localhost:4000/api/users/admin/60d21b4667d0d8992e610c89/statu
 ```
 
 ## 3. Products (Admin)
+### Get All Products (with Pagination & Search)
+```bash
+curl -X GET "http://localhost:4000/api/products?page=1&limit=20&search=protein&sort=Newest&type=Supplements&brand=Optimum%20Nutrition&inStock=true&isActive=all" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
 ### Create Product
 ```bash
 curl -X POST http://localhost:4000/api/products \
