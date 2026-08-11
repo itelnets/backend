@@ -14,8 +14,8 @@ import paymentRoutes from './routes/paymentRoutes';
 import { logger } from './middleware/logger';
 
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy for rate limiting (e.g., ngrok/load balancer)
-const PORT = process.env.PORT || 4000;
+app.set('trust proxy', 1); // Trust first proxy for rate limiting (e.g., Vercel / load balancer)
+const PORT = process.env.PORT;
 
 // Middleware
 app.use(logger);
@@ -74,4 +74,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-
