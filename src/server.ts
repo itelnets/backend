@@ -39,6 +39,12 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// Ensure DB is connected before handling any request (Serverless optimization)
+app.use(async (req, res, next) => {
+    await connectDB();
+    next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -56,12 +62,6 @@ app.use('/api/payment', paymentRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
-});
-
-// Ensure DB is connected before handling any request (Serverless optimization)
-app.use(async (req, res, next) => {
-    await connectDB();
-    next();
 });
 
 // Only start listening if we aren't in a serverless environment (Vercel sets process.env.VERCEL)

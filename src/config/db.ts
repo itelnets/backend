@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
 
-// Fix for MongoDB Atlas SRV resolution issues on some networks
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Fix for MongoDB Atlas SRV resolution issues on some local networks
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+}
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
