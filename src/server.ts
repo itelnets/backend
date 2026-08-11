@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
+import { connectDB } from './config/db';
 import authRoutes from './routes/auth';
 import productRoutes from './routes/product';
 import uploadRoutes from './routes/upload';
@@ -12,9 +12,7 @@ import wishlistRoutes from './routes/wishlist';
 import userRoutes from './routes/userRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import { logger } from './middleware/logger';
-import dns from 'dns';
 
-dns.setServers(['8.8.8.8', '8.8.4.4']);
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy for rate limiting (e.g., ngrok/load balancer)
 const PORT = process.env.PORT || 4000;
@@ -60,20 +58,20 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Connect to MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
+// Ensure DB is connected before handling any request (Serverless optimization)
+app.use(async (req, res, next) => {
+    await connectDB();
+    next();
+});
 
-mongoose.connect(MONGODB_URI as string)
-    .then(() => {
-        console.log('Connected to MongoDB');
+// Only start listening if we aren't in a serverless environment (Vercel sets process.env.VERCEL)
+if (!process.env.VERCEL) {
+    connectDB().then(() => {
         app.listen(PORT, () => {
             console.log(`Server is running on http://localhost:${PORT}`);
         });
-    })
-    .catch((error) => {
-        console.error('MongoDB connection error:', error);
-        process.exit(1);
     });
+}
 
 export default app;
 
