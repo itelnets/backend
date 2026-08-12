@@ -42,13 +42,16 @@ const normalizeBannerImageValue = (urlOrKey: string) => {
 export const getBanners = async (req: Request, res: Response) => {
     try {
         const banners = await Banner.find({ isActive: true }).sort({ order: 1, createdAt: -1 });
+
         const processedBanners = banners.map(b => ({
             _id: b._id,
             imageKey: b.imageKey,
-            imageUrl: getPublicUrl(b.imageKey),
+            imageUrl: b.imageKey ? getPublicUrl(b.imageKey) : '',
             fileSize: b.fileSize || 0,
             width: b.width || 0,
             height: b.height || 0,
+            tabTitle: b.tabTitle || '',
+            tabSubtitle: b.tabSubtitle || '',
             isActive: b.isActive,
             order: (b as any).order || 0,
             createdAt: b.createdAt
@@ -62,7 +65,7 @@ export const getBanners = async (req: Request, res: Response) => {
 
 export const createBanner = async (req: Request, res: Response) => {
     try {
-        const { imageKey, fileSize, width, height } = req.body;
+        const { imageKey, fileSize, width, height, tabTitle, tabSubtitle } = req.body;
 
         if (!imageKey) {
             return res.status(400).json({ message: 'Image key is required' });
@@ -79,6 +82,8 @@ export const createBanner = async (req: Request, res: Response) => {
             fileSize: fileSize || 0,
             width: width || 0,
             height: height || 0,
+            tabTitle: tabTitle || '',
+            tabSubtitle: tabSubtitle || '',
             order: nextOrder
         });
 
@@ -91,6 +96,8 @@ export const createBanner = async (req: Request, res: Response) => {
             fileSize: banner.fileSize,
             width: banner.width,
             height: banner.height,
+            tabTitle: banner.tabTitle || '',
+            tabSubtitle: banner.tabSubtitle || '',
             isActive: banner.isActive,
             order: (banner as any).order || 0,
             createdAt: banner.createdAt
@@ -143,6 +150,8 @@ export const updateBanner = async (req: Request, res: Response) => {
             fileSize: banner.fileSize,
             width: banner.width,
             height: banner.height,
+            tabTitle: banner.tabTitle || '',
+            tabSubtitle: banner.tabSubtitle || '',
             isActive: banner.isActive,
             order: (banner as any).order || 0,
             createdAt: banner.createdAt

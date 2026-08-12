@@ -5,16 +5,21 @@ export interface IBanner extends Document {
     fileSize: number;
     width: number;
     height: number;
+    tabTitle?: string;
+    tabSubtitle?: string;
+    order: number;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
 
 const BannerSchema: Schema = new Schema({
-    imageKey: { type: String, required: true },
-    fileSize: { type: Number, required: true },
-    width: { type: Number, required: true },
-    height: { type: Number, required: true },
+    imageKey: { type: String, default: '' },
+    fileSize: { type: Number, default: 0 },
+    width: { type: Number, default: 0 },
+    height: { type: Number, default: 0 },
+    tabTitle: { type: String, default: '' },
+    tabSubtitle: { type: String, default: '' },
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true }
 }, {
