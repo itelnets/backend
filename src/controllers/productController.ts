@@ -83,6 +83,19 @@ export const getProducts = async (req: Request, res: Response) => {
             query.type = new RegExp(`^${(type as string).trim()}$`, 'i');
         }
 
+        let discountFilter: any = {};
+        if (req.query.minDiscount !== undefined && !isNaN(parseFloat(req.query.minDiscount as string))) {
+            discountFilter.$gte = parseFloat(req.query.minDiscount as string);
+        } else if (req.query.discount !== undefined && !isNaN(parseFloat(req.query.discount as string))) {
+            discountFilter.$gte = parseFloat(req.query.discount as string);
+        }
+        if (req.query.maxDiscount !== undefined && !isNaN(parseFloat(req.query.maxDiscount as string))) {
+            discountFilter.$lte = parseFloat(req.query.maxDiscount as string);
+        }
+        if (Object.keys(discountFilter).length > 0) {
+            query.discount = discountFilter;
+        }
+
         if (brand) {
             query.brand = { $in: (brand as string).split(',') };
         }
