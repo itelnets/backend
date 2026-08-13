@@ -39,7 +39,7 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
         }
 
         const orders = await Order.find(query)
-            .populate('orderItems.product', 'name image price')
+            .populate('orderItems.product', 'name images price')
             .populate('user', 'name email mobileNumber')
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -68,7 +68,7 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
 router.get('/:id', authenticate, async (req: any, res: any) => {
     try {
         const order = await Order.findById(req.params.id)
-            .populate('orderItems.product', 'name image price');
+            .populate('orderItems.product', 'name images price');
 
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
@@ -92,7 +92,7 @@ router.get('/:id', authenticate, async (req: any, res: any) => {
 router.get('/:id/invoice', authenticate, async (req: any, res: any) => {
     try {
         const order = await Order.findById(req.params.id)
-            .populate('orderItems.product', 'name image price')
+            .populate('orderItems.product', 'name images price')
             .populate('user', 'name email mobileNumber');
 
         if (!order) {
@@ -192,7 +192,7 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
         }
 
         const orders = await Order.find(query)
-            .populate('orderItems.product', 'name image price')
+            .populate('orderItems.product', 'name images price')
             .populate('user', 'name email mobileNumber')
             .sort({ createdAt: -1 })
             .skip(skip)

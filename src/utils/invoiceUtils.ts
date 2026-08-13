@@ -3,7 +3,7 @@ import Order from '../models/Order';
 
 export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer> => {
     const order = await Order.findById(orderId)
-        .populate('orderItems.product', 'name image price hsn batchNo expiredOn manufacturer')
+        .populate('orderItems.product', 'name images price hsn batchNo expiredOn manufacturer')
         .populate('user', 'name email mobileNumber');
 
     if (!order) {

@@ -195,7 +195,7 @@ router.post('/refund', authenticate, async (req: any, res: any) => {
 
         let newStatus = 'Refund Initiated';
         let newRefundStatus = 'pending';
-        
+
         if (refund && refund.status === 'processed') {
             newStatus = 'Refunded';
             newRefundStatus = 'processed';
