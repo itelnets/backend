@@ -34,7 +34,16 @@ const upload = multer({
                 cb(null, `banners/${filename}`);
             } else {
                 const productId = req.body.productId || req.query.productId || 'unassigned';
-                cb(null, `products/${productId}/${filename}`);
+                const rawProductType = req.body.productType || req.query.productType || req.body.type || req.query.type || '';
+                const productTypeFolder = rawProductType.trim()
+                    ? rawProductType.trim().toLowerCase().replace(/[^a-z0-9]/g, '-')
+                    : '';
+
+                if (productTypeFolder && productTypeFolder !== 'product') {
+                    cb(null, `products/${productTypeFolder}/${productId}/${filename}`);
+                } else {
+                    cb(null, `products/${productId}/${filename}`);
+                }
             }
         }
     }),
