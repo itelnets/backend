@@ -251,6 +251,10 @@ export const getProductById = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
     try {
         const productData: any = { ...req.body };
+        if (req.user?.userId) {
+            productData.adminId = req.user.userId;
+        }
+        delete productData.rating; // Manual rating setting removed; ratings are calculated from reviews
 
         if (req.body.images !== undefined) {
             if (Array.isArray(req.body.images)) {
@@ -331,6 +335,9 @@ export const updateProduct = async (req: Request, res: Response) => {
                 }
             }
 
+            if (req.user?.userId) {
+                req.body.adminId = req.user.userId;
+            }
             product.set(req.body);
             if (req.body.isActive !== undefined) {
                 product.isActive = req.body.isActive;

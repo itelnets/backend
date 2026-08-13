@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IProduct extends Document {
+    adminId?: mongoose.Types.ObjectId;
     name: string;
     description: string;
     price: number;
@@ -33,6 +34,7 @@ export interface IProduct extends Document {
 
 const productSchema = new Schema<IProduct>(
     {
+        adminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
         name: { type: String },
         description: { type: String },
         price: { type: Number },

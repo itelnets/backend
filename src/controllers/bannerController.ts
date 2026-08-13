@@ -41,7 +41,18 @@ const normalizeBannerImageValue = (urlOrKey: string) => {
 
 export const getBanners = async (req: Request, res: Response) => {
     try {
-        const banners = await Banner.find({ isActive: true }).sort({ order: 1, createdAt: -1 });
+        const { isActive } = req.query;
+        let query: any = {};
+
+        if (isActive === 'all') {
+            // Admin requesting all banners
+        } else if (isActive === 'false') {
+            query.isActive = false;
+        } else {
+            query.isActive = true;
+        }
+
+        const banners = await Banner.find(query).sort({ order: 1, createdAt: -1 });
 
         const processedBanners = banners.map(b => ({
             _id: b._id,
@@ -52,7 +63,7 @@ export const getBanners = async (req: Request, res: Response) => {
             height: b.height || 0,
             tabTitle: b.tabTitle || '',
             tabSubtitle: b.tabSubtitle || '',
-            isActive: b.isActive,
+            isActive: b.isActive !== false,
             order: (b as any).order || 0,
             createdAt: b.createdAt
         }));
@@ -78,6 +89,7 @@ export const createBanner = async (req: Request, res: Response) => {
         const nextOrder = (last && (last as any).order >= 0) ? ((last as any).order + 1) : 0;
 
         const banner = new Banner({
+            adminId: req.user?.userId,
             imageKey: normalizedImageUrl,
             fileSize: fileSize || 0,
             width: width || 0,
@@ -114,6 +126,9 @@ export const updateBanner = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const update = { ...req.body };
+        if (req.user?.userId) {
+            update.adminId = req.user.userId;
+        }
 
         const existingBanner = await Banner.findById(id);
         if (!existingBanner) {

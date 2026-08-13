@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IBanner extends Document {
+    adminId?: mongoose.Types.ObjectId;
     imageKey: string;
     fileSize: number;
     width: number;
@@ -14,6 +15,7 @@ export interface IBanner extends Document {
 }
 
 const BannerSchema: Schema = new Schema({
+    adminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
     imageKey: { type: String, default: '' },
     fileSize: { type: Number, default: 0 },
     width: { type: Number, default: 0 },
