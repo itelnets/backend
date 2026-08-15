@@ -41,8 +41,13 @@ app.use(express.urlencoded({ extended: true }));
 
 // Ensure DB is connected before handling any request (Serverless optimization)
 app.use(async (req, res, next) => {
-    await connectDB();
-    next();
+    try {
+        await connectDB();
+        next();
+    } catch (err: any) {
+        console.error('Database connection failed in request middleware:', err.message);
+        res.status(500).json({ message: 'Database connection failed. Please check MONGODB_URI configuration.' });
+    }
 });
 
 // Routes
