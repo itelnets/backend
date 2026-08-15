@@ -11,17 +11,12 @@ const MONGODB_URI = process.env.MONGODB_URI;
 let isConnected = false;
 
 export const connectDB = async () => {
-    if (isConnected && mongoose.connection.readyState >= 1) {
+    if (isConnected || mongoose.connection.readyState >= 1) {
+        isConnected = true;
         return;
     }
-    const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) {
-        const err = new Error('MONGODB_URI environment variable is not defined');
-        console.error(err.message);
-        throw err;
-    }
     try {
-        await mongoose.connect(mongoUri, {
+        await mongoose.connect(MONGODB_URI as string, {
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
@@ -29,8 +24,6 @@ export const connectDB = async () => {
         isConnected = true;
         console.log('Connected to MongoDB');
     } catch (error) {
-        isConnected = false;
         console.error('MongoDB connection error:', error);
-        throw error;
     }
 };
