@@ -59,8 +59,8 @@ import orderRoutes from './routes/orderRoutes';
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 
-// Health check & Root routes
-app.get(['/', '/api', '/api/health'], (req, res) => {
+// Health check
+app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
 });
 
