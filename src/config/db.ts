@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
 
-// Fix for MongoDB Atlas SRV resolution issues on some local networks
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Fix for MongoDB Atlas SRV resolution issues across cloud/serverless environments
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+    console.warn('Unable to set custom DNS servers:', e);
 }
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -22,7 +24,7 @@ export const connectDB = async () => {
             socketTimeoutMS: 45000,
         });
         isConnected = true;
-        console.log('Connected to MongoDB');
+        console.log('Connected to MongoDB', MONGODB_URI);
     } catch (error) {
         console.error('MongoDB connection error:', error);
     }
