@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { authenticate } from '../middleware/auth';
 import Order from '../models/Order';
+import User from '../models/User';
 import { generateInvoicePdfBuffer } from '../utils/invoiceUtils';
 
 const router = express.Router();
@@ -183,11 +184,32 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
             query.user = userId;
         }
 
-        if (search) {
-            if (mongoose.Types.ObjectId.isValid(search.trim())) {
-                query._id = search.trim();
+        if (search && search.trim()) {
+            const trimmedSearch = search.trim();
+            const searchConditions: any[] = [];
+
+            // 1. Search by Order ID if valid ObjectId
+            if (mongoose.Types.ObjectId.isValid(trimmedSearch)) {
+                searchConditions.push({ _id: new mongoose.Types.ObjectId(trimmedSearch) });
+            }
+
+            // 2. Search users by email, name, or mobileNumber
+            const matchingUsers = await User.find({
+                $or: [
+                    { email: { $regex: trimmedSearch, $options: 'i' } },
+                    { name: { $regex: trimmedSearch, $options: 'i' } },
+                    { mobileNumber: { $regex: trimmedSearch, $options: 'i' } }
+                ]
+            }).select('_id');
+
+            if (matchingUsers.length > 0) {
+                searchConditions.push({ user: { $in: matchingUsers.map(u => u._id) } });
+            }
+
+            if (searchConditions.length > 0) {
+                query.$or = searchConditions;
             } else {
-                query._id = null; // Forces empty result if invalid ID is searched
+                query._id = null; // No matching order ID or user email found
             }
         }
 

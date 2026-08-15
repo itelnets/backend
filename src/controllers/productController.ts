@@ -47,6 +47,36 @@ const processProductForResponse = async (product: any) => {
     return prodObj;
 };
 
+const extractWeightInGrams = (product: any): number => {
+    if (product.weight) {
+        const num = parseFloat(String(product.weight));
+        if (!isNaN(num)) {
+            if (String(product.weightUnit).toLowerCase() === 'kg') return num * 1000;
+            return num;
+        }
+    }
+    if (product.specifications && Array.isArray(product.specifications)) {
+        const spec = product.specifications.find((s: any) =>
+            s && s.key && (
+                s.key.toLowerCase().includes('weight') ||
+                s.key === 'Weight (gm)'
+            )
+        );
+        if (spec && spec.value) {
+            const valStr = String(spec.value).trim().toLowerCase();
+            const match = valStr.match(/([\d.]+)\s*(kg|gm|g)?/i);
+            if (match) {
+                const num = parseFloat(match[1]);
+                if (!isNaN(num)) {
+                    if (match[2] === 'kg') return num * 1000;
+                    return num;
+                }
+            }
+        }
+    }
+    return 0;
+};
+
 export const getProducts = async (req: Request, res: Response) => {
     try {
         const { sort, inStock, brand, minPrice, maxPrice, ratings, search, type, categories, page, limit, includeFilters, isActive } = req.query;
@@ -150,31 +180,53 @@ export const getProducts = async (req: Request, res: Response) => {
         }
 
         let sortQuery: any = { order: 1, createdAt: -1 };
-        if (sort === 'Price: Low to High') sortQuery = { price: 1 };
-        if (sort === 'Price: High to Low') sortQuery = { price: -1 };
-        if (sort === 'Newest') sortQuery = { createdAt: -1 };
-        if (sort === 'Top Rated') sortQuery = { rating: -1 };
-        if (sort === 'Best sellers') sortQuery = { bestSeller: -1 }; // Or however we track best sellers
+        if (sort === 'Price: Low to High' || sort === 'price_asc') sortQuery = { price: 1 };
+        if (sort === 'Price: High to Low' || sort === 'price_desc') sortQuery = { price: -1 };
+        if (sort === 'Newest' || sort === 'newest') sortQuery = { createdAt: -1 };
+        if (sort === 'Top Rated' || sort === 'rating_desc') sortQuery = { rating: -1 };
+        if (sort === 'Best sellers' || sort === 'bestsellers') sortQuery = { bestSeller: -1, createdAt: -1 };
+        if (sort === 'Highest Discount' || sort === 'highest_discount' || sort === 'discount_desc') sortQuery = { discount: -1, createdAt: -1 };
 
         const isPaginated = page !== undefined || limit !== undefined;
+        const isWeightSort = sort === 'Heaviest' || sort === 'heaviest' || sort === 'Lightest' || sort === 'lightest';
 
-        let productsQuery = Product.find(query).sort(sortQuery);
-
+        let processedProducts: any[] = [];
         let totalProducts = 0;
         let pageNum = 1;
         let limitNum = 20;
 
-        if (isPaginated) {
-            pageNum = parseInt(page as string, 10) || 1;
-            limitNum = parseInt(limit as string, 10) || 20;
-            const skip = (pageNum - 1) * limitNum;
+        if (isWeightSort) {
+            const allProducts = await Product.find(query);
+            let processed = await Promise.all(allProducts.map(processProductForResponse));
+            if (sort === 'Heaviest' || sort === 'heaviest') {
+                processed.sort((a, b) => extractWeightInGrams(b) - extractWeightInGrams(a));
+            } else {
+                processed.sort((a, b) => extractWeightInGrams(a) - extractWeightInGrams(b));
+            }
+            totalProducts = processed.length;
+            if (isPaginated) {
+                pageNum = parseInt(page as string, 10) || 1;
+                limitNum = parseInt(limit as string, 10) || 20;
+                const skip = (pageNum - 1) * limitNum;
+                processedProducts = processed.slice(skip, skip + limitNum);
+            } else {
+                processedProducts = processed;
+            }
+        } else {
+            let productsQuery = Product.find(query).sort(sortQuery);
 
-            totalProducts = await Product.countDocuments(query);
-            productsQuery = productsQuery.skip(skip).limit(limitNum);
+            if (isPaginated) {
+                pageNum = parseInt(page as string, 10) || 1;
+                limitNum = parseInt(limit as string, 10) || 20;
+                const skip = (pageNum - 1) * limitNum;
+
+                totalProducts = await Product.countDocuments(query);
+                productsQuery = productsQuery.skip(skip).limit(limitNum);
+            }
+
+            const products = await productsQuery;
+            processedProducts = await Promise.all(products.map(processProductForResponse));
         }
-
-        const products = await productsQuery;
-        const processedProducts = await Promise.all(products.map(processProductForResponse));
 
         let availableBrands: string[] = [];
         if (includeFilters === 'true') {
