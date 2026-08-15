@@ -3,7 +3,7 @@ import dns from 'dns';
 
 // Fix for MongoDB Atlas SRV resolution issues across cloud/serverless environments
 try {
-    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
 } catch (e) {
     console.warn('Unable to set custom DNS servers:', e);
 }
