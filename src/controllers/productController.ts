@@ -213,19 +213,24 @@ export const getProducts = async (req: Request, res: Response) => {
                 processedProducts = processed;
             }
         } else {
-            let productsQuery = Product.find(query).sort(sortQuery);
+            let productsQuery = Product.find(query).lean().sort(sortQuery);
 
             if (isPaginated) {
                 pageNum = parseInt(page as string, 10) || 1;
                 limitNum = parseInt(limit as string, 10) || 20;
                 const skip = (pageNum - 1) * limitNum;
 
-                totalProducts = await Product.countDocuments(query);
-                productsQuery = productsQuery.skip(skip).limit(limitNum);
+                const [total, products] = await Promise.all([
+                    Product.countDocuments(query),
+                    productsQuery.skip(skip).limit(limitNum)
+                ]);
+                totalProducts = total;
+                processedProducts = await Promise.all(products.map(processProductForResponse));
+            } else {
+                const products = await productsQuery;
+                totalProducts = products.length;
+                processedProducts = await Promise.all(products.map(processProductForResponse));
             }
-
-            const products = await productsQuery;
-            processedProducts = await Promise.all(products.map(processProductForResponse));
         }
 
         let availableBrands: string[] = [];

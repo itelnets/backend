@@ -213,14 +213,17 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
             }
         }
 
-        const orders = await Order.find(query)
-            .populate('orderItems.product', 'name images price')
-            .populate('user', 'name email mobileNumber')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
+        const [orders, totalOrders] = await Promise.all([
+            Order.find(query)
+                .populate('orderItems.product', 'name images price')
+                .populate('user', 'name email mobileNumber')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Order.countDocuments(query)
+        ]);
 
-        const totalOrders = await Order.countDocuments(query);
         const totalPages = Math.ceil(totalOrders / limit);
 
         res.json({ totalPages, currentPage: page, totalOrders, orders });

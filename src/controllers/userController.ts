@@ -10,14 +10,12 @@ export const getProfile = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Not authorized, please login' });
         }
 
-        const user = await User.findById(userId);
+        const [user, addresses] = await Promise.all([
+            User.findById(userId).lean(),
+            req.query.include === 'addresses' ? Address.find({ userId }).lean() : Promise.resolve(undefined)
+        ]);
 
         if (user) {
-            let addresses = undefined;
-            if (req.query.include === 'addresses') {
-                addresses = await Address.find({ userId });
-            }
-
             res.json({
                 _id: user._id,
                 name: user.name,

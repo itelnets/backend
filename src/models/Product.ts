@@ -76,4 +76,9 @@ const productSchema = new Schema<IProduct>(
     { timestamps: true }
 );
 
+productSchema.index({ order: 1, createdAt: -1 });
+productSchema.index({ type: 1 });
+productSchema.index({ isActive: 1 });
+productSchema.index({ createdAt: -1 });
+
 export default mongoose.model<IProduct>('Product', productSchema);

@@ -52,7 +52,7 @@ export const getBanners = async (req: Request, res: Response) => {
             query.isActive = true;
         }
 
-        const banners = await Banner.find(query).sort({ order: 1, createdAt: -1 });
+        const banners = await Banner.find(query).sort({ order: 1, createdAt: -1 }).lean();
 
         const processedBanners = banners.map(b => ({
             _id: b._id,
@@ -84,9 +84,8 @@ export const createBanner = async (req: Request, res: Response) => {
 
         const normalizedImageUrl = normalizeBannerImageValue(String(imageKey));
 
-        // determine order (append to end)
-        const last = await Banner.findOne().sort({ order: -1 }).select('order').lean();
-        const nextOrder = (last && (last as any).order >= 0) ? ((last as any).order + 1) : 0;
+        // Shift all existing banners order by +1 so new banner takes top position (order 0)
+        await Banner.updateMany({}, { $inc: { order: 1 } });
 
         const banner = new Banner({
             adminId: req.user?.userId,
@@ -96,7 +95,7 @@ export const createBanner = async (req: Request, res: Response) => {
             height: height || 0,
             tabTitle: tabTitle || '',
             tabSubtitle: tabSubtitle || '',
-            order: nextOrder
+            order: 0
         });
 
         await banner.save();
