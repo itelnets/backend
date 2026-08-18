@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Product from '../models/Product';
 import Cart from '../models/Cart';
+import ProductType from '../models/ProductType';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 const s3 = new S3Client({
@@ -466,5 +467,122 @@ export const reorderProducts = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error reordering products:', error);
         res.status(500).json({ message: 'Server error reordering products' });
+    }
+};
+
+export const getProductTypes = async (req: Request, res: Response) => {
+    try {
+        const types = await ProductType.find({ isActive: true }).sort({ createdAt: 1 });
+        const typeNames = types.map(t => t.name);
+        res.status(200).json({ types: typeNames });
+    } catch (error) {
+        console.error('Error fetching product types:', error);
+        res.status(500).json({ message: 'Server error fetching product types' });
+    }
+};
+
+export const createProductType = async (req: Request, res: Response) => {
+    try {
+        const { name } = req.body;
+        if (!name || typeof name !== 'string' || !name.trim()) {
+            return res.status(400).json({ message: 'Product type name is required' });
+        }
+        const trimmed = name.trim();
+        let existing = await ProductType.findOne({ name: new RegExp(`^${trimmed}$`, 'i') });
+        if (!existing) {
+            existing = await ProductType.create({ name: trimmed });
+        }
+        res.status(201).json({ message: 'Product type saved', type: existing });
+    } catch (error: any) {
+        console.error('Error saving product type:', error);
+        res.status(500).json({ message: 'Server error saving product type' });
+    }
+};
+
+export const updateProductType = async (req: Request, res: Response) => {
+    try {
+        const { oldName, newName } = req.body;
+        if (!oldName || !newName || !oldName.trim() || !newName.trim()) {
+            return res.status(400).json({ message: 'Both oldName and newName are required' });
+        }
+
+        const trimmedOld = oldName.trim();
+        const trimmedNew = newName.trim();
+
+        // Update ProductType document
+        await ProductType.findOneAndUpdate(
+            { name: new RegExp(`^${trimmedOld}$`, 'i') },
+            { name: trimmedNew },
+            { upsert: true, new: true }
+        );
+
+        // Update all Products matching old type
+        const updateResult = await Product.updateMany(
+            { type: new RegExp(`^${trimmedOld}$`, 'i') },
+            { type: trimmedNew }
+        );
+
+        res.status(200).json({
+            message: 'Product type updated successfully',
+            updatedProductsCount: updateResult.modifiedCount
+        });
+    } catch (error: any) {
+        console.error('Error updating product type:', error);
+        res.status(500).json({ message: 'Server error updating product type' });
+    }
+};
+
+export const deleteProductType = async (req: Request, res: Response) => {
+    try {
+        const typeName = req.params.name || req.query.name || req.body.name;
+        if (!typeName || typeof typeName !== 'string' || !typeName.trim()) {
+            return res.status(400).json({ message: 'Product type name is required' });
+        }
+
+        const trimmed = typeName.trim();
+
+        // 1. Remove ProductType document from product_types collection
+        await ProductType.deleteMany({ name: new RegExp(`^${trimmed}$`, 'i') });
+
+        // 2. Find all products associated with this ProductType
+        const productsToDelete = await Product.find({ type: new RegExp(`^${trimmed}$`, 'i') });
+
+        let deletedProductsCount = 0;
+        let deletedImagesCount = 0;
+        const bucket = process.env.AWS_S3_BUCKET_NAME || 'my-bucket';
+
+        // 3. For each product, delete S3 images and delete product document
+        for (const product of productsToDelete) {
+            if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                for (const img of product.images) {
+                    const imageKey = getImageKeyFromUrl(String(img));
+                    if (imageKey) {
+                        try {
+                            const command = new DeleteObjectCommand({
+                                Bucket: bucket,
+                                Key: imageKey
+                            });
+                            await s3.send(command);
+                            deletedImagesCount++;
+                        } catch (s3Err) {
+                            console.error(`Failed to delete S3 image ${imageKey}:`, s3Err);
+                        }
+                    }
+                }
+            }
+
+            // Remove product document
+            await Product.findByIdAndDelete(product._id);
+            deletedProductsCount++;
+        }
+
+        res.status(200).json({
+            message: `Page deleted successfully`,
+            deletedProductsCount,
+            deletedImagesCount
+        });
+    } catch (error: any) {
+        console.error('Error deleting product type:', error);
+        res.status(500).json({ message: 'Server error deleting product type' });
     }
 };

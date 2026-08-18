@@ -97,4 +97,4 @@ const DoctorRequestSchema: Schema = new Schema(
     }
 );
 
-export default mongoose.model<IDoctorRequest>('DoctorRequest', DoctorRequestSchema);
+export default mongoose.model<IDoctorRequest>('DoctorRequest', DoctorRequestSchema, 'doctor_requests');

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
+import { seedDefaultProductTypes } from '../models/ProductType';
 
 // Fix for MongoDB Atlas SRV resolution issues across cloud/serverless environments
 try {
@@ -25,6 +26,7 @@ export const connectDB = async () => {
         });
         isConnected = true;
         console.log('Connected to MongoDB');
+        seedDefaultProductTypes();
     } catch (error) {
         console.error('MongoDB connection error:', error);
     }
