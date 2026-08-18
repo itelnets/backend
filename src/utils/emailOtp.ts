@@ -225,7 +225,7 @@ export const sendDoctorApprovalEmail = async (email: string, name: string, promo
                             <span style="font-family: monospace, Courier, sans-serif; color: #15803d; font-size: 28px; font-weight: bold; letter-spacing: 3px; background: #ffffff; border: 1.5px dashed #22c55e; padding: 8px 20px; border-radius: 6px; display: inline-block;">${promoCode}</span>
                         </div>
                         <div style="margin-top: 12px;">
-                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?promo=${promoCode}" style="background-color: #15803d; color: #ffffff; text-decoration: none; padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(21, 128, 61, 0.2);">
+                            <a href="${process.env.FRONTEND_URL}/cart?promo=${promoCode}" style="background-color: #15803d; color: #ffffff; text-decoration: none; padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(21, 128, 61, 0.2);">
                                 Copy & Apply Code
                             </a>
                         </div>
