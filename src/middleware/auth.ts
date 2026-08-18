@@ -47,3 +47,17 @@ export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
         res.status(403).json({ message: 'Not authorized as an admin' });
     }
 };
+
+export const authenticateOptional = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            const decoded = verifyToken(token);
+            req.user = decoded;
+        }
+    } catch (error) {
+        // Ignore errors for optional authentication
+    }
+    next();
+};

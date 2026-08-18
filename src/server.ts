@@ -11,6 +11,9 @@ import cartRoutes from './routes/cart';
 import wishlistRoutes from './routes/wishlist';
 import userRoutes from './routes/userRoutes';
 import paymentRoutes from './routes/paymentRoutes';
+import orderRoutes from './routes/orderRoutes';
+import doctorRoutes from './routes/doctorRoutes';
+import promoRoutes from './routes/promoRoutes';
 import { logger } from './middleware/logger';
 
 const app = express();
@@ -54,9 +57,9 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
-import orderRoutes from './routes/orderRoutes';
-
 app.use('/api/orders', orderRoutes);
+app.use('/api/doctor', doctorRoutes);
+app.use('/api/promo', promoRoutes);
 app.use('/api/payment', paymentRoutes);
 
 // Health check

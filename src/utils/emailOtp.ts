@@ -186,3 +186,110 @@ export const sendPasswordResetSuccessEmail = async (email: string): Promise<void
         console.error('Password reset success email error:', error.message);
     }
 };
+
+export const sendDoctorApprovalEmail = async (email: string, name: string, promoCode: string, discountDetails: string): Promise<boolean> => {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+    const isProduction = Boolean(emailUser && emailPass);
+
+    if (!isProduction) {
+        console.log('\n========================================');
+        console.log(`[DEV] Doctor Approval Email to ${email} (Dr. ${name}): Code=${promoCode}`);
+        console.log('========================================\n');
+        return true;
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: {
+                user: emailUser,
+                pass: emailPass,
+            },
+        });
+
+        await transporter.sendMail({
+            from: `"Itelents" <${emailUser}>`,
+            to: email,
+            subject: 'Doctor Verification Approved - Your Exclusive Promo Code!',
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #374151; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px;">
+                    <h2 style="color: #15803d; margin-top: 0;">Doctor Verification Approved!</h2>
+                    <p>Dear Dr. ${name},</p>
+                    <p>We are pleased to inform you that your medical council registration details have been verified and approved by our team.</p>
+                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+                        <p style="margin: 0; color: #166534; font-size: 13px; font-weight: bold; text-transform: uppercase;">YOUR EXCLUSIVE DOCTOR PROMO CODE:</p>
+                        <div style="margin: 12px 0;">
+                            <span style="font-family: monospace, Courier, sans-serif; color: #15803d; font-size: 28px; font-weight: bold; letter-spacing: 3px; background: #ffffff; border: 1.5px dashed #22c55e; padding: 8px 20px; border-radius: 6px; display: inline-block;">${promoCode}</span>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?promo=${promoCode}" style="background-color: #15803d; color: #ffffff; text-decoration: none; padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(21, 128, 61, 0.2);">
+                                Copy & Apply Code
+                            </a>
+                        </div>
+                        <p style="margin: 14px 0 0 0; color: #15803d; font-size: 13px; font-weight: 500;">${discountDetails.includes('%') ? discountDetails : `${discountDetails}% OFF on all prescription & healthcare products`}</p>
+                    </div>
+                    <p>You can use this promo code during checkout to claim your doctor discount on all eligible products.</p>
+                    <p style="margin-top: 24px;">Best regards,<br><strong>Itelents Healthcare Team</strong></p>
+                </div>
+            `,
+        });
+        return true;
+    } catch (error: any) {
+        console.error('Doctor approval email error:', error.message);
+        return false;
+    }
+};
+
+export const sendDoctorRejectionEmail = async (email: string, name: string, reason?: string): Promise<boolean> => {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+    const isProduction = Boolean(emailUser && emailPass);
+
+    if (!isProduction) {
+        console.log('\n========================================');
+        console.log(`[DEV] Doctor Rejection Email to ${email} (Dr. ${name}): Reason=${reason || 'None provided'}`);
+        console.log('========================================\n');
+        return true;
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            auth: {
+                user: emailUser,
+                pass: emailPass,
+            },
+        });
+
+        await transporter.sendMail({
+            from: `"Itelents" <${emailUser}>`,
+            to: email,
+            subject: 'Doctor Verification Request Update - Itelents',
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #374151; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px;">
+                    <h2 style="color: #dc2626; margin-top: 0;">Doctor Verification Request Status</h2>
+                    <p>Dear Dr. ${name},</p>
+                    <p>Thank you for submitting your doctor verification details with Itelents.</p>
+                    <p>After reviewing your submitted details and medical council registration records, we were unable to approve your request at this time.</p>
+                    ${reason ? `
+                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                        <p style="margin: 0; color: #991b1b; font-size: 13px; font-weight: bold;">REASON / NOTES:</p>
+                        <p style="margin: 4px 0 0 0; color: #7f1d1d; font-size: 14px;">${reason}</p>
+                    </div>
+                    ` : ''}
+                    <p>If you believe there was a typo or mismatch, you can log in to your account and resubmit your updated verification details anytime in Doctor Corner.</p>
+                    <p style="margin-top: 24px;">Best regards,<br><strong>Itelents Healthcare Team</strong></p>
+                </div>
+            `,
+        });
+        return true;
+    } catch (error: any) {
+        console.error('Doctor rejection email error:', error.message);
+        return false;
+    }
+};

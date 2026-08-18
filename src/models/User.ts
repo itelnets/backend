@@ -13,6 +13,10 @@ export interface IUser extends Document {
     resetPasswordToken?: string;
     resetPasswordExpiresAt?: Date;
     isDeleted: boolean;
+    isDoctorVerified?: boolean;
+    doctorPromoCode?: string;
+    doctorDiscountDetails?: string;
+    doctorDiscountPercent?: number;
     ipAddress?: string;
     latitude?: number;
     longitude?: number;
@@ -61,6 +65,22 @@ const UserSchema: Schema = new Schema(
         isDeleted: {
             type: Boolean,
             default: false,
+        },
+        isDoctorVerified: {
+            type: Boolean,
+            default: false,
+        },
+        doctorPromoCode: {
+            type: String,
+            default: null,
+        },
+        doctorDiscountDetails: {
+            type: String,
+            default: null,
+        },
+        doctorDiscountPercent: {
+            type: Number,
+            default: 25,
         },
         otp: {
             type: String,

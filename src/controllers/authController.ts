@@ -209,6 +209,8 @@ export const login = async (req: Request, res: Response) => {
                 mobileNumber: user.mobileNumber,
                 role: user.role,
                 isEmailVerified: user.isEmailVerified,
+                isDoctorVerified: user.isDoctorVerified || false,
+                doctorPromoCode: user.doctorPromoCode || '',
             },
             role: user.role,
         });
