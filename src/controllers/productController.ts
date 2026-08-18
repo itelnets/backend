@@ -412,7 +412,17 @@ export const updateProduct = async (req: Request, res: Response) => {
 
 export const deleteProduct = async (req: Request, res: Response) => {
     try {
-        const product = await Product.findByIdAndDelete(req.params.id);
+        const productId = req.params.id;
+
+        // Check if product is currently present in any active user cart
+        const inCartCount = await Cart.countDocuments({ productId, isSold: false });
+        if (inCartCount > 0) {
+            return res.status(400).json({
+                message: 'Product already added in cart'
+            });
+        }
+
+        const product = await Product.findByIdAndDelete(productId);
         if (product) {
             // Delete images from S3
             if (product.images && product.images.length > 0) {
