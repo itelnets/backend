@@ -221,13 +221,8 @@ export const sendDoctorApprovalEmail = async (email: string, name: string, promo
                     <p>We are pleased to inform you that your medical council registration details have been verified and approved by our team.</p>
                     <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
                         <p style="margin: 0; color: #166534; font-size: 13px; font-weight: bold; text-transform: uppercase;">YOUR EXCLUSIVE DOCTOR PROMO CODE:</p>
-                        <div style="margin: 12px 0;">
-                            <span style="font-family: monospace, Courier, sans-serif; color: #15803d; font-size: 28px; font-weight: bold; letter-spacing: 3px; background: #ffffff; border: 1.5px dashed #22c55e; padding: 8px 20px; border-radius: 6px; display: inline-block;">${promoCode}</span>
-                        </div>
-                        <div style="margin-top: 12px;">
-                            <a href="${process.env.FRONTEND_URL}/cart?promo=${promoCode}" style="background-color: #15803d; color: #ffffff; text-decoration: none; padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(21, 128, 61, 0.2);">
-                                Copy & Apply Code
-                            </a>
+                        <div style="margin: 14px 0;">
+                            <span style="font-family: monospace, Courier, sans-serif; color: #15803d; font-size: 28px; font-weight: bold; letter-spacing: 3px; display: inline-block;">${promoCode}</span>
                         </div>
                         <p style="margin: 14px 0 0 0; color: #15803d; font-size: 13px; font-weight: 500;">${discountDetails.includes('%') ? discountDetails : `${discountDetails}% OFF on all prescription & healthcare products`}</p>
                     </div>
