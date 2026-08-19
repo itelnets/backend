@@ -403,7 +403,7 @@ export const updateProduct = async (req: Request, res: Response) => {
                 { $set: req.body },
                 { new: true, runValidators: true }
             );
-            console.log(`[backend updateProduct] Updated product ID ${req.params.id} in MongoDB! Name: ${updatedProduct?.name}, Price: ${updatedProduct?.price}`);
+            console.log(`Updated product ID ${req.params.id} Name: ${updatedProduct?.name}, Price: ${updatedProduct?.price}`);
             res.status(200).json(updatedProduct);
         } else {
             res.status(404).json({ message: 'Product not found' });
