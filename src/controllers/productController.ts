@@ -136,7 +136,9 @@ export const getProducts = async (req: Request, res: Response) => {
         }
 
         if (inStock === 'true') {
-            query.inStock = { $regex: /^yes$/i }; // Assuming "Yes" is stored, or could be true if boolean
+            query.inStock = { $ne: 'No' };
+        } else if (inStock === 'false') {
+            query.inStock = 'No';
         }
 
         if (minPrice !== undefined || maxPrice !== undefined) {
