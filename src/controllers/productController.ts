@@ -403,7 +403,7 @@ export const updateProduct = async (req: Request, res: Response) => {
                 { $set: req.body },
                 { new: true, runValidators: true }
             );
-            console.log(`Updated product ID ${req.params.id} Name: ${updatedProduct?.name}, Price: ${updatedProduct?.price}`);
+            console.log(`\x1b[33m[${new Date().toISOString().replace('T', ' ').substring(0, 19)}] ${req.params.id} Name: ${updatedProduct?.name}, Price: ${updatedProduct?.price}\x1b[0m`);
             res.status(200).json(updatedProduct);
         } else {
             res.status(404).json({ message: 'Product not found' });
