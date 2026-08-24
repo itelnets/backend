@@ -6,8 +6,6 @@ export interface IBanner extends Document {
     fileSize: number;
     width: number;
     height: number;
-    tabTitle?: string;
-    tabSubtitle?: string;
     order: number;
     isActive: boolean;
     createdAt: Date;
@@ -20,8 +18,6 @@ const BannerSchema: Schema = new Schema({
     fileSize: { type: Number, default: 0 },
     width: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
-    tabTitle: { type: String, default: '' },
-    tabSubtitle: { type: String, default: '' },
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true }
 }, {
