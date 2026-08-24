@@ -128,7 +128,13 @@ export const getProducts = async (req: Request, res: Response) => {
         }
 
         if (brand) {
-            query.brand = { $in: (brand as string).split(',') };
+            const brandList = (brand as string).split(',').map(b => b.trim()).filter(Boolean);
+            const regexList = brandList.map(b => new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+            query.$or = query.$or || [];
+            query.$or.push(
+                { brand: { $in: regexList } },
+                { manufacturer: { $in: regexList } }
+            );
         }
 
         if (categories) {
@@ -238,11 +244,15 @@ export const getProducts = async (req: Request, res: Response) => {
 
         let availableBrands: string[] = [];
         if (includeFilters === 'true') {
-            // Get available brands for the base category query (ignoring current filter selections)
-            const filterQuery: any = { brand: { $ne: null } };
+            // Get available brands and manufacturers for the base category query (ignoring current filter selections)
+            const filterQuery: any = { isActive: true };
             if (type) filterQuery.type = new RegExp(`^${(type as string).trim()}$`, 'i');
-            const brands = await Product.distinct('brand', filterQuery);
-            availableBrands = brands.filter(Boolean).sort();
+            const [brands, manufacturers] = await Promise.all([
+                Product.distinct('brand', filterQuery),
+                Product.distinct('manufacturer', filterQuery)
+            ]);
+            const combined = Array.from(new Set([...brands, ...manufacturers])).filter(Boolean) as string[];
+            availableBrands = combined.sort((a, b) => a.localeCompare(b));
         }
 
         if (isPaginated) {
@@ -281,12 +291,16 @@ export const getProducts = async (req: Request, res: Response) => {
 export const getFilters = async (req: Request, res: Response) => {
     try {
         const { type } = req.query;
-        let query: any = { brand: { $ne: null } };
+        let query: any = { isActive: true };
         if (type) {
             query.type = new RegExp(`^${(type as string).trim()}$`, 'i');
         }
-        const brands = await Product.distinct('brand', query);
-        res.status(200).json({ brands: brands.filter(Boolean).sort() });
+        const [brands, manufacturers] = await Promise.all([
+            Product.distinct('brand', query),
+            Product.distinct('manufacturer', query)
+        ]);
+        const combined = Array.from(new Set([...brands, ...manufacturers])).filter(Boolean) as string[];
+        res.status(200).json({ brands: combined.sort((a, b) => a.localeCompare(b)) });
     } catch (error) {
         console.error('Error fetching filters:', error);
         res.status(500).json({ message: 'Server error fetching filters' });
