@@ -67,9 +67,6 @@ const healthHandler = (req: express.Request, res: express.Response) => {
     res.json({ status: 'ok', message: 'Server is running' });
 };
 app.get('/', healthHandler);
-app.get('/health', healthHandler);
-app.get('/api', healthHandler);
-app.get('/api/health', healthHandler);
 
 // Only start listening if we aren't in a serverless environment (Vercel sets process.env.VERCEL)
 if (!process.env.VERCEL) {
