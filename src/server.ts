@@ -63,7 +63,7 @@ app.use('/api/promo', promoRoutes);
 app.use('/api/payment', paymentRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/', (req, res) => {
     res.json({ status: 'ok', message: 'Server is running' });
 });
 
