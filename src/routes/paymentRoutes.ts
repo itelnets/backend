@@ -27,14 +27,23 @@ router.post('/create-order', authenticate, async (req: any, res: any) => {
     try {
         const { orderItems, shippingAddress, itemsPrice, taxPrice, shippingPrice, totalPrice } = req.body;
 
-        if (orderItems && orderItems.length === 0) {
+        if (!orderItems || orderItems.length === 0) {
             return res.status(400).json({ message: 'No order items' });
         }
+
+        // Sanitize order items to ensure valid image and fields
+        const sanitizedOrderItems = orderItems.map((item: any) => ({
+            product: item.product,
+            name: item.name || 'Product',
+            qty: Number(item.qty) || 1,
+            image: item.image || item.product?.images?.[0] || item.product?.image || '/placeholder.png',
+            price: Number(item.price) || 0,
+        }));
 
         // 1. Create Order in MongoDB first (Status: Pending)
         const order = new Order({
             user: req.user.userId,
-            orderItems,
+            orderItems: sanitizedOrderItems,
             shippingAddress,
             paymentMethod: 'Razorpay',
             itemsPrice,
