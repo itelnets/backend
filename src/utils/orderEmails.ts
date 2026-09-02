@@ -4,9 +4,13 @@ import { generateInvoicePdfBuffer } from './invoiceUtils';
 const getTransporter = () => {
     const emailUser = process.env.EMAIL_USER;
     const emailPass = process.env.EMAIL_PASS;
+    const emailHost = process.env.EMAIL_HOST || 'smtpout.secureserver.net';
+    const emailPort = Number(process.env.EMAIL_PORT) || 465;
 
     return nodemailer.createTransport({
-        service: 'gmail',
+        host: emailHost,
+        port: emailPort,
+        secure: emailPort === 465,
         auth: {
             user: emailUser,
             pass: emailPass,
@@ -30,8 +34,8 @@ export const sendOrderConfirmationEmail = async (email: string, orderDetails: an
             if (user && user.name) customerName = user.name;
         }
 
-        const companyName = 'Itelnets';
-        const supportEmail = 'itelnets3@gmail.com';
+        const companyName = 'Pratham Herbs';
+        const supportEmail = 'care@prathamherbs.com';
         const invoiceNumber = `IN-${orderDetails._id.toString().substring(0, 8).toUpperCase()}`;
         const orderDate = new Date(orderDetails.createdAt || new Date()).toLocaleDateString('en-GB').replace(/\//g, '-');
         const totalAmount = (orderDetails.totalPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
@@ -59,9 +63,9 @@ export const sendOrderConfirmationEmail = async (email: string, orderDetails: an
 
         const transporter = getTransporter();
         await transporter.sendMail({
-            from: `"Itelents" <${process.env.EMAIL_USER}>`,
+            from: `"Pratham Herbs" <${process.env.EMAIL_USER}>`,
             to: email,
-            subject: 'Order Confirmation - Itelents',
+            subject: 'Order Confirmation - Pratham Herbs',
             html: htmlBody,
             attachments: [
                 {
@@ -90,8 +94,8 @@ export const sendRefundEmail = async (email: string, orderDetails: any, status: 
             if (user && user.name) customerName = user.name;
         }
 
-        const companyName = 'Itelnets';
-        const supportEmail = 'itelnets3@gmail.com';
+        const companyName = 'Pratham Herbs';
+        const supportEmail = 'care@prathamherbs.com';
         const orderDate = new Date(orderDetails.createdAt || new Date()).toLocaleDateString('en-GB').replace(/\//g, '-');
         const amountPaid = (orderDetails.totalPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
         const refundAmount = amountPaid;
@@ -128,9 +132,9 @@ export const sendRefundEmail = async (email: string, orderDetails: any, status: 
 
         const transporter = getTransporter();
         await transporter.sendMail({
-            from: `"Itelents" <${process.env.EMAIL_USER}>`,
+            from: `"Pratham Herbs" <${process.env.EMAIL_USER}>`,
             to: email,
-            subject: 'Refund Request Received - Itelents',
+            subject: 'Refund Request Received - Pratham Herbs',
             html: htmlBody,
         });
         return true;
@@ -146,9 +150,9 @@ export const sendReturnStatusEmail = async (email: string, orderDetails: any, st
         const transporter = getTransporter();
 
         await transporter.sendMail({
-            from: `"Itelents" <${process.env.EMAIL_USER}>`,
+            from: `"Pratham Herbs" <${process.env.EMAIL_USER}>`,
             to: email,
-            subject: `Return Request ${status.charAt(0).toUpperCase() + status.slice(1)} - Itelents`,
+            subject: `Return Request ${status.charAt(0).toUpperCase() + status.slice(1)} - Pratham Herbs`,
             html: `
                 <div style="font-family: Arial, sans-serif; color: #374151; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 8px;">
                     <h2 style="color: ${status === 'approved' ? '#15803d' : '#ef4444'}; text-align: center; margin-bottom: 24px;">Return Request ${status.charAt(0).toUpperCase() + status.slice(1)}</h2>
@@ -158,7 +162,7 @@ export const sendReturnStatusEmail = async (email: string, orderDetails: any, st
                     
                     <p style="margin-top: 16px;">Visit for more products: <a href="https://www.google.com" target="_blank" style="color: #15803d; text-decoration: none;">www.google.com</a></p>
                     
-                    <p style="margin-top: 24px; font-size: 13px; color: #6b7280;">Best regards,<br>Itelents Team</p>
+                    <p style="margin-top: 24px; font-size: 13px; color: #6b7280;">Best regards,<br>Pratham Herbs Team</p>
                 </div>
             `,
         });

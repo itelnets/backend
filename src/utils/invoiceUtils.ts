@@ -25,7 +25,7 @@ export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer>
                 <!-- Top Header -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
                     <div>
-                        <h1 style="margin: 0; font-size: 28px; font-weight: 800;">Itelnets</h1>
+                        <h1 style="margin: 0; font-size: 28px; font-weight: 800;">Pratham Herbs</h1>
                     </div>
                     <div style="text-align: right;">
                         <h2 style="margin: 0; font-size: 16px; font-weight: bold;">Tax Invoice/Bill of Supply/Cash Memo</h2>
@@ -37,7 +37,7 @@ export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
                     <div style="width: 45%;">
                         <p style="margin: 0 0 4px 0; font-weight: bold;">Sold By :</p>
-                        <p style="margin: 0 0 4px 0;">Itelnets</p>
+                        <p style="margin: 0 0 4px 0;">Pratham Herbs</p>
                         <p style="margin: 0 0 4px 0;">Varni Plaza, 128, Near Sudama Chowk</p>
                         <p style="margin: 0 0 4px 0;">Mota Varachha, Surat, Gujarat 394101</p>
                         <p style="margin: 0 0 4px 0;">IN</p>
@@ -155,7 +155,7 @@ export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer>
                         </tr>
                         <tr>
                             <td colspan="13" style="border: 1px solid #000; padding: 60px 4px 15px 4px; text-align: right; vertical-align: bottom;">
-                                <strong>For Itelnets:</strong><br/><br/><br/>
+                                <strong>For Pratham Herbs:</strong><br/><br/><br/>
                                 <strong>Authorized Signatory</strong>
                             </td>
                         </tr>
