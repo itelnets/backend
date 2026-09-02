@@ -244,7 +244,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
         // Check if a reset link was recently sent
         if (user.resetPasswordExpiresAt && user.resetPasswordExpiresAt > new Date()) {
-            return res.status(409).json({ message: 'Password reset link already sent. Please try after 2 minutes' });
+            return res.status(409).json({ message: 'Link already sent. Try after 2 minutes' });
         }
 
         // Generate a cryptographically secure token
@@ -255,16 +255,12 @@ export const forgotPassword = async (req: Request, res: Response) => {
         user.resetPasswordExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
         await user.save();
 
-        // Send Email
-        const sent = await sendPasswordResetLink(user.email, resetToken);
-        if (!sent) {
-            user.resetPasswordToken = undefined;
-            user.resetPasswordExpiresAt = undefined;
-            await user.save();
-            return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
-        }
+        // Send Email in background (non-blocking for fast UI response)
+        sendPasswordResetLink(user.email, resetToken).catch((err) => {
+            console.error('Background password reset email dispatch error:', err);
+        });
 
-        res.status(200).json({ 
+        res.status(200).json({
             message: 'Password reset link sent successfully',
             email: user.email,
             token: resetToken,

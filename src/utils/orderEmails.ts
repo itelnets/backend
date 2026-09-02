@@ -1,21 +1,30 @@
 import nodemailer from 'nodemailer';
 import { generateInvoicePdfBuffer } from './invoiceUtils';
 
+let cachedTransporter: any = null;
+
 const getTransporter = () => {
+    if (cachedTransporter) return cachedTransporter;
+
     const emailUser = process.env.EMAIL_USER;
     const emailPass = process.env.EMAIL_PASS;
-    const emailHost = process.env.EMAIL_HOST || 'smtpout.secureserver.net';
-    const emailPort = Number(process.env.EMAIL_PORT) || 465;
+    const emailHost = process.env.EMAIL_HOST;
+    const emailPort = Number(process.env.EMAIL_PORT);
 
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
         host: emailHost,
         port: emailPort,
         secure: emailPort === 465,
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
         auth: {
             user: emailUser,
             pass: emailPass,
         },
     });
+
+    return cachedTransporter;
 };
 
 const isProduction = () => process.env.NODE_ENV === 'production';
