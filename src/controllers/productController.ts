@@ -202,7 +202,7 @@ export const getProducts = async (req: Request, res: Response) => {
         let processedProducts: any[] = [];
         let totalProducts = 0;
         let pageNum = 1;
-        let limitNum = 20;
+        let limitNum = 30;
 
         if (isWeightSort) {
             const allProducts = await Product.find(query);
@@ -215,7 +215,7 @@ export const getProducts = async (req: Request, res: Response) => {
             totalProducts = processed.length;
             if (isPaginated) {
                 pageNum = parseInt(page as string, 10) || 1;
-                limitNum = parseInt(limit as string, 10) || 20;
+                limitNum = parseInt(limit as string, 10) || 30;
                 const skip = (pageNum - 1) * limitNum;
                 processedProducts = processed.slice(skip, skip + limitNum);
             } else {
@@ -226,7 +226,7 @@ export const getProducts = async (req: Request, res: Response) => {
 
             if (isPaginated) {
                 pageNum = parseInt(page as string, 10) || 1;
-                limitNum = parseInt(limit as string, 10) || 20;
+                limitNum = parseInt(limit as string, 10) || 30;
                 const skip = (pageNum - 1) * limitNum;
 
                 const [total, products] = await Promise.all([
