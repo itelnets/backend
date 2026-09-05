@@ -31,8 +31,8 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
                 query.status = { $in: ['Cancelled', 'Pending', 'Refund Failed'] };
             } else if (status === 'Refunded') {
                 query.$or = [
-                    { status: { $in: ['Refunded', 'Refund Initiated', 'Refund Requested'] } },
-                    { refundStatus: { $in: ['requested', 'pending', 'processed'] } }
+                    { status: { $in: ['Refunded', 'Refund Initiated', 'Refund Requested', 'Refund Denied'] } },
+                    { refundStatus: { $in: ['requested', 'pending', 'processed', 'denied'] } }
                 ];
             } else if (status === 'Captured') {
                 query.status = 'Captured';
@@ -180,8 +180,8 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
 
         const query: any = {};
         if (status && status !== 'All') {
-            if (status === 'Refunded') {
-                query.status = { $in: ['Refunded', 'Refund Initiated', 'Refund Requested'] };
+            if (status === 'Refunded' || status === 'Return') {
+                query.status = { $in: ['Refunded', 'Refund Initiated', 'Refund Requested', 'Refund Denied'] };
             } else {
                 query.status = status;
             }
@@ -236,6 +236,31 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
         res.json({ totalPages, currentPage: page, totalOrders, orders });
     } catch (error: any) {
         console.error('Fetch All Orders Error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// @route   POST /api/orders/admin/:id/reject-return
+// @desc    Admin rejects a return request
+// @access  Private/Admin
+router.post('/admin/:id/reject-return', authenticate, async (req: any, res: any) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized as admin' });
+        }
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        order.status = 'Refund Denied';
+        order.refundStatus = 'denied';
+        const updatedOrder = await order.save();
+
+        res.json({ message: 'Return rejected successfully', order: updatedOrder });
+    } catch (error: any) {
+        console.error('Reject Return Error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 });

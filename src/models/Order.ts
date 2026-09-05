@@ -41,8 +41,8 @@ export interface IOrder extends Document {
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
-    status: 'Pending' | 'Captured' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Refund Initiated' | 'Refunded' | 'Refund Failed' | 'Refund Requested';
-    refundStatus?: 'NONE' | 'requested' | 'pending' | 'processed' | 'failed';
+    status: 'Pending' | 'Captured' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Refund Initiated' | 'Refunded' | 'Refund Failed' | 'Refund Requested' | 'Refund Denied';
+    refundStatus?: 'NONE' | 'requested' | 'pending' | 'processed' | 'failed' | 'denied';
 }
 
 const orderSchema = new Schema<IOrder>(
@@ -137,12 +137,12 @@ const orderSchema = new Schema<IOrder>(
         },
         status: {
             type: String,
-            enum: ['Pending', 'Captured', 'Shipped', 'Delivered', 'Cancelled', 'Refund Initiated', 'Refunded', 'Refund Failed', 'Refund Requested'],
+            enum: ['Pending', 'Captured', 'Shipped', 'Delivered', 'Cancelled', 'Refund Initiated', 'Refunded', 'Refund Failed', 'Refund Requested', 'Refund Denied'],
             default: 'Pending',
         },
         refundStatus: {
             type: String,
-            enum: ['NONE', 'requested', 'pending', 'processed', 'failed'],
+            enum: ['NONE', 'requested', 'pending', 'processed', 'failed', 'denied'],
             default: 'NONE',
         },
     },
