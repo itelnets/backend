@@ -142,7 +142,7 @@ router.post('/create-order', authenticate, async (req: any, res: any) => {
         createdOrder.paymentSessionId = payment_session_id;
         await createdOrder.save();
 
-        logWithTime(`POST /api/payment/create-order - [Cashfree Order Created] Session: ${payment_session_id}`);
+        logWithTime(`POST /api/payment/create-order - [Cashfree Order Created]`);
 
         res.status(201).json({
             order: createdOrder,
