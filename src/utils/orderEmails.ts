@@ -52,7 +52,7 @@ export const sendOrderConfirmationEmail = async (email: string, orderDetails: an
         const htmlBody = `
             <div style="font-family: Arial, sans-serif; color: #374151; font-size: 14px; line-height: 1.5;">
                 <p style="margin: 0 0 10px 0;">Dear ${customerName},</p>
-                <p style="margin: 0 0 10px 0;">Thank you for your purchase from ${companyName}! We’re happy to confirm that your payment was successfully received through Razorpay and your order has been confirmed.</p>
+                <p style="margin: 0 0 10px 0;">Thank you for your purchase from ${companyName}! We’re happy to confirm that your payment was successfully received and your order has been confirmed.</p>
                 
                 <p style="margin: 0 0 5px 0;"><strong>Order Details:</strong></p>
                 <ul style="list-style-type: none; padding-left: 0; margin: 0 0 10px 0;">
@@ -109,7 +109,7 @@ export const sendRefundEmail = async (email: string, orderDetails: any, status: 
         const amountPaid = (orderDetails.totalPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
         const refundAmount = amountPaid;
         const refundReason = orderDetails.refundReason || orderDetails.returnReason || 'Requested by customer';
-        const paymentId = orderDetails.razorpayPaymentId || orderDetails.paymentResult?.id || 'N/A';
+        const paymentId = orderDetails.cashfreePaymentId || orderDetails.razorpayPaymentId || orderDetails.paymentResult?.id || 'N/A';
 
         const htmlBody = `
             <div style="font-family: Arial, sans-serif; color: #374151; font-size: 15px; line-height: 1.6;">

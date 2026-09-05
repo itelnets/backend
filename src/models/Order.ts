@@ -35,6 +35,9 @@ export interface IOrder extends Document {
     paidAt?: Date;
     isDelivered: boolean;
     deliveredAt?: Date;
+    cashfreeOrderId?: string;
+    cashfreePaymentId?: string;
+    paymentSessionId?: string;
     razorpayOrderId?: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
@@ -75,7 +78,7 @@ const orderSchema = new Schema<IOrder>(
         paymentMethod: {
             type: String,
             required: true,
-            default: 'Razorpay',
+            default: 'Cashfree',
         },
         paymentResult: {
             id: { type: String },
@@ -113,6 +116,15 @@ const orderSchema = new Schema<IOrder>(
         },
         deliveredAt: {
             type: Date,
+        },
+        cashfreeOrderId: {
+            type: String,
+        },
+        cashfreePaymentId: {
+            type: String,
+        },
+        paymentSessionId: {
+            type: String,
         },
         razorpayOrderId: {
             type: String,

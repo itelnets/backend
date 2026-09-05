@@ -45,7 +45,7 @@ export const generateInvoicePdfBuffer = async (orderId: string): Promise<Buffer>
                         <p style="margin: 0 0 4px 0;"><strong>GST Registration No:</strong> 24KIBPK3086F1Z9</p>
                         
                         <br/><br/>
-                        <p style="margin: 0 0 4px 0;"><strong>Order Number:</strong> ${selectedOrder.razorpayOrderId || selectedOrder._id}</p>
+                        <p style="margin: 0 0 4px 0;"><strong>Order Number:</strong> ${selectedOrder.cashfreeOrderId || selectedOrder.razorpayOrderId || selectedOrder._id}</p>
                         <p style="margin: 0 0 4px 0;"><strong>Order Date:</strong> ${new Date(selectedOrder.createdAt).toLocaleDateString('en-GB').replace(/\//g, '.')}</p>
                     </div>
                     

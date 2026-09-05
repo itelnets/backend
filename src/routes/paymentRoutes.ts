@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
-import Razorpay from 'razorpay';
+import axios from 'axios';
+// import Razorpay from 'razorpay';
 import { authenticate } from '../middleware/auth';
 import Order from '../models/Order';
 import Product from '../models/Product';
@@ -15,13 +16,54 @@ const logWithTime = (message: string) => {
 
 const router = express.Router();
 
+/*
+// RAZORPAY CONFIGURATION (COMMENTED OUT)
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID || '',
     key_secret: process.env.RAZORPAY_KEY_SECRET || '',
 });
+*/
+
+// CASHFREE CONFIGURATION
+const getCashfreeBaseUrl = () => {
+    const env = process.env.CASHFREE_ENV || 'sandbox';
+    return env === 'production'
+        ? 'https://api.cashfree.com/pg'
+        : 'https://sandbox.cashfree.com/pg';
+};
+
+const getCashfreeHeaders = () => {
+    return {
+        'x-client-id': process.env.CASHFREE_APP_ID || '',
+        'x-client-secret': process.env.CASHFREE_SECRET_KEY || '',
+        'x-api-version': '2023-08-01',
+        'Content-Type': 'application/json',
+    };
+};
+
+const sanitizePhone = (phoneInput: any): string => {
+    if (!phoneInput) return '9999999999';
+    const cleaned = String(phoneInput).replace(/\D/g, '');
+    if (cleaned.length === 10) return cleaned;
+    if (cleaned.length === 12 && cleaned.startsWith('91')) return cleaned.substring(2);
+    if (cleaned.length > 10) return cleaned.slice(-10);
+    if (cleaned.length > 0 && cleaned.length < 10) return cleaned.padStart(10, '9');
+    return '9999999999';
+};
+
+const sanitizeCustomerId = (userId: any): string => {
+    let idStr = String(userId || 'cust_' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '');
+    if (idStr.length < 3) idStr = 'cust_' + idStr;
+    return idStr.substring(0, 45);
+};
+
+const sanitizeCustomerName = (name: any): string => {
+    const clean = String(name || 'Customer').trim().replace(/[^\w\s-]/g, '');
+    return clean.length >= 3 ? clean.substring(0, 50) : 'Customer';
+};
 
 // @route   POST /api/payment/create-order
-// @desc    Create Razorpay order and save to DB
+// @desc    Create Cashfree order (and save to DB)
 // @access  Private
 router.post('/create-order', authenticate, async (req: any, res: any) => {
     try {
@@ -45,7 +87,7 @@ router.post('/create-order', authenticate, async (req: any, res: any) => {
             user: req.user.userId,
             orderItems: sanitizedOrderItems,
             shippingAddress,
-            paymentMethod: 'Razorpay',
+            paymentMethod: 'Cashfree',
             itemsPrice,
             taxPrice,
             shippingPrice,
@@ -55,160 +97,227 @@ router.post('/create-order', authenticate, async (req: any, res: any) => {
         const createdOrder = await order.save();
         logWithTime(`POST /api/payment/create-order - [Create Order] Status: ${createdOrder.status}`);
 
-        // 2. Create Order in Razorpay
-        // Amount is in paisa (multiply by 100)
+        /*
+        // ORIGINAL RAZORPAY ORDER CREATION (COMMENTED OUT)
         const amountInPaisa = Math.round(Number(totalPrice) * 100);
-
         const options = {
             amount: amountInPaisa,
             currency: 'INR',
             receipt: createdOrder._id.toString(),
         };
-
         const razorpayOrder = await razorpay.orders.create(options);
-
-        // 3. Save Razorpay Order ID to MongoDB
         createdOrder.razorpayOrderId = razorpayOrder.id;
         await createdOrder.save();
+        */
+
+        // 2. Create Order in Cashfree
+        const rawPhone = shippingAddress?.phone || req.user?.phone || req.user?.mobileNumber;
+        const rawName = shippingAddress?.fullName || req.user?.name;
+
+        const cashfreeOrderData = {
+            order_id: createdOrder._id.toString(),
+            order_amount: Math.round(Number(totalPrice) * 100) / 100,
+            order_currency: 'INR',
+            customer_details: {
+                customer_id: sanitizeCustomerId(req.user.userId),
+                customer_name: sanitizeCustomerName(rawName),
+                customer_email: req.user?.email || 'customer@example.com',
+                customer_phone: sanitizePhone(rawPhone),
+            },
+            order_meta: {
+                return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/user/orders?order_id={order_id}`,
+            },
+        };
+
+        const cashfreeRes = await axios.post(
+            `${getCashfreeBaseUrl()}/orders`,
+            cashfreeOrderData,
+            { headers: getCashfreeHeaders(), timeout: 15000 }
+        );
+
+        const { cf_order_id, payment_session_id, order_id } = cashfreeRes.data;
+
+        // 3. Save Cashfree Details to MongoDB Order
+        createdOrder.cashfreeOrderId = order_id || cf_order_id;
+        createdOrder.paymentSessionId = payment_session_id;
+        await createdOrder.save();
+
+        logWithTime(`POST /api/payment/create-order - [Cashfree Order Created] Session: ${payment_session_id}`);
 
         res.status(201).json({
             order: createdOrder,
-            razorpayOrderId: razorpayOrder.id,
-            amount: razorpayOrder.amount,
-            currency: razorpayOrder.currency,
+            cashfreeOrderId: order_id || cf_order_id,
+            paymentSessionId: payment_session_id,
+            amount: Math.round(Number(totalPrice) * 100),
+            currency: 'INR',
         });
     } catch (error: any) {
-        console.error('Create Order Error:', error);
-        res.status(500).json({ message: error.message || 'Server Error' });
+        console.error('Create Order Error:', error?.response?.data || error.message || error);
+        res.status(error?.response?.status || 500).json({
+            message: error?.response?.data?.message || error.message || 'Server Error creating payment order'
+        });
     }
 });
 
 // @route   POST /api/payment/verify
-// @desc    Verify Razorpay signature after frontend payment success
+// @desc    Verify Cashfree payment status after checkout
 // @access  Private
 router.post('/verify', authenticate, async (req: any, res: any) => {
     try {
-        const { orderId, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+        const { orderId, cashfreeOrderId } = req.body;
 
-        const order = await Order.findById(orderId);
+        const targetOrderId = orderId || cashfreeOrderId;
+        const order = await Order.findById(targetOrderId) || await Order.findOne({ cashfreeOrderId: targetOrderId });
+
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
 
-        // Verify Signature
+        /*
+        // ORIGINAL RAZORPAY VERIFICATION LOGIC (COMMENTED OUT)
         const body = razorpayOrderId + '|' + razorpayPaymentId;
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
             .update(body.toString())
             .digest('hex');
-
         if (expectedSignature !== razorpaySignature) {
             return res.status(400).json({ message: 'Invalid signature. Payment verification failed.' });
         }
+        */
 
-        // Fetch payment details to get the exact method (upi, card, netbanking)
-        let method = 'Razorpay';
+        // Verify Payment via Cashfree REST API
+        const cfOrderId = order.cashfreeOrderId || order._id.toString();
+        const cfOrderRes = await axios.get(
+            `${getCashfreeBaseUrl()}/orders/${cfOrderId}`,
+            { headers: getCashfreeHeaders(), timeout: 15000 }
+        );
+
+        const cfOrderStatus = cfOrderRes.data?.order_status;
+        logWithTime(`POST /api/payment/verify - [Cashfree Status] Order ID: ${cfOrderId}, Status: ${cfOrderStatus}`);
+
+        // Fetch payment list for specific payment ID & method
+        let cfPaymentId = '';
+        let paymentMethod = 'Cashfree';
         try {
-            const paymentDetails = await razorpay.payments.fetch(razorpayPaymentId);
-            if (paymentDetails && paymentDetails.method) {
-                method = paymentDetails.method;
+            const cfPaymentsRes = await axios.get(
+                `${getCashfreeBaseUrl()}/orders/${cfOrderId}/payments`,
+                { headers: getCashfreeHeaders(), timeout: 15000 }
+            );
+            if (Array.isArray(cfPaymentsRes.data) && cfPaymentsRes.data.length > 0) {
+                const successfulPayment = cfPaymentsRes.data.find((p: any) => p.payment_status === 'SUCCESS') || cfPaymentsRes.data[0];
+                cfPaymentId = successfulPayment.cf_payment_id ? String(successfulPayment.cf_payment_id) : '';
+                paymentMethod = successfulPayment.payment_group || 'Cashfree';
             }
-        } catch (err) {
-            console.error('Error fetching razorpay payment details:', err);
+        } catch (e) {
+            console.error('Error fetching cashfree payment list:', e);
         }
 
-        // Mark order as paid
-        order.isPaid = true;
-        order.paidAt = new Date();
-        order.razorpayPaymentId = razorpayPaymentId;
-        order.razorpaySignature = razorpaySignature;
-        order.status = 'Captured';
-        order.paymentMethod = method; // e.g. 'upi', 'card'
-        order.paymentResult = {
-            id: razorpayPaymentId,
-            status: 'Captured',
-            update_time: new Date().toISOString(),
-            email_address: req.user?.email || '',
-        };
+        if (cfOrderStatus === 'PAID' || cfPaymentId) {
+            order.isPaid = true;
+            order.paidAt = new Date();
+            order.cashfreePaymentId = cfPaymentId || `cf_pay_${Date.now()}`;
+            order.status = 'Captured';
+            order.paymentMethod = 'Cashfree';
+            order.paymentResult = {
+                id: order.cashfreePaymentId,
+                status: 'Captured',
+                update_time: new Date().toISOString(),
+                email_address: req.user?.email || '',
+            };
 
-        const updatedOrder = await order.save();
+            const updatedOrder = await order.save();
 
-        // Increment product sales
-        if (updatedOrder.orderItems && updatedOrder.orderItems.length > 0) {
-            for (const item of updatedOrder.orderItems) {
-                await Product.findByIdAndUpdate(item.product, {
-                    $inc: { salesCount: item.qty }
-                });
+            // Increment product sales
+            if (updatedOrder.orderItems && updatedOrder.orderItems.length > 0) {
+                for (const item of updatedOrder.orderItems) {
+                    await Product.findByIdAndUpdate(item.product, {
+                        $inc: { salesCount: item.qty }
+                    });
+                }
             }
-        }
 
-        // Send Order Confirmation Email
-        let userEmail = req.user?.email;
-        if (!userEmail && updatedOrder.user) {
-            const user = await User.findById(updatedOrder.user);
-            if (user && user.email) {
-                userEmail = user.email;
+            // Send Order Confirmation Email
+            let userEmail = req.user?.email;
+            if (!userEmail && updatedOrder.user) {
+                const user = await User.findById(updatedOrder.user);
+                if (user && user.email) {
+                    userEmail = user.email;
+                }
             }
-        }
-        if (userEmail) {
-            sendOrderConfirmationEmail(userEmail, updatedOrder).catch((e: any) => console.error(e));
-        }
+            if (userEmail) {
+                sendOrderConfirmationEmail(userEmail, updatedOrder).catch((e: any) => console.error(e));
+            }
 
-        logWithTime(`POST /api/payment/verify - [Verify] Status Updated To: ${updatedOrder.status}`);
+            logWithTime(`POST /api/payment/verify - [Verify] Status Updated To: ${updatedOrder.status}`);
 
-        res.json({ message: 'Payment verified successfully', order: updatedOrder });
+            return res.json({ message: 'Payment verified successfully', order: updatedOrder });
+        } else {
+            return res.status(400).json({
+                message: `Payment status is ${cfOrderStatus}. Payment verification failed or pending.`,
+                order
+            });
+        }
     } catch (error: any) {
-        console.error('Verify Payment Error:', error);
-        res.status(500).json({ message: error.message || 'Server Error' });
+        console.error('Verify Payment Error:', error?.response?.data || error.message || error);
+        res.status(500).json({ message: error?.response?.data?.message || error.message || 'Server Error' });
     }
 });
 
 // @route   POST /api/payment/refund
-// @desc    Process a refund for an order
-// @access  Private (Ideally should be Admin only, keeping authenticate for now)
+// @desc    Process a refund for an order via Cashfree
+// @access  Private (Admin)
 router.post('/refund', authenticate, async (req: any, res: any) => {
     try {
         if (req.user.role !== 'admin') {
             return res.status(403).json({ message: 'Not authorized as admin' });
         }
 
-        const { orderId, amount } = req.body; // Amount is optional for partial refund
+        const { orderId, amount } = req.body;
 
         const order = await Order.findById(orderId);
         if (!order) {
             return res.status(404).json({ message: 'Order not found' });
         }
 
-        if (!order.isPaid || !order.razorpayPaymentId) {
+        if (!order.isPaid) {
             return res.status(400).json({ message: 'Order is not paid yet' });
         }
 
-        // Amount must be in paisa if specified
+        /*
+        // ORIGINAL RAZORPAY REFUND LOGIC (COMMENTED OUT)
         const refundOptions: any = {};
-        if (amount) {
-            refundOptions.amount = Math.round(Number(amount) * 100);
-        }
+        if (amount) refundOptions.amount = Math.round(Number(amount) * 100);
+        let refund = await razorpay.payments.refund(order.razorpayPaymentId, refundOptions);
+        */
 
-        let refund;
+        const cfOrderId = order.cashfreeOrderId || order._id.toString();
+        const refundId = `refund_${Date.now()}`;
+        const refundPayload = {
+            refund_amount: Number(amount) || Number(order.totalPrice),
+            refund_id: refundId,
+            refund_note: 'Admin initiated refund via Cashfree',
+        };
+
+        let cfRefundRes;
         try {
-            refund = await razorpay.payments.refund(order.razorpayPaymentId, refundOptions);
+            cfRefundRes = await axios.post(
+                `${getCashfreeBaseUrl()}/orders/${cfOrderId}/refunds`,
+                refundPayload,
+                { headers: getCashfreeHeaders(), timeout: 15000 }
+            );
         } catch (err: any) {
-            if (err?.error?.description === 'The payment has been fully refunded already') {
-                order.status = 'Refunded';
-                order.refundStatus = 'processed';
-                await order.save();
-                return res.json({ message: 'Payment was already refunded on Razorpay. Status synced.', status: 'Refunded' });
-            }
-            throw err; // Rethrow other errors to the main catch block
+            console.error('Cashfree Refund Error Response:', err?.response?.data || err.message);
+            throw new Error(err?.response?.data?.message || 'Cashfree refund request failed');
         }
 
+        const refundData = cfRefundRes.data;
         let newStatus = 'Refund Initiated';
         let newRefundStatus = 'pending';
 
-        if (refund && refund.status === 'processed') {
+        if (refundData && (refundData.refund_status === 'SUCCESS' || refundData.refund_status === 'PROCESSED')) {
             newStatus = 'Refunded';
             newRefundStatus = 'processed';
-        } else if (refund && refund.status === 'failed') {
+        } else if (refundData && refundData.refund_status === 'FAILED') {
             newStatus = 'Refund Failed';
             newRefundStatus = 'failed';
         }
@@ -236,7 +345,7 @@ router.post('/refund', authenticate, async (req: any, res: any) => {
             sendRefundEmail(userEmail, updatedOrder, newStatus).catch((e: any) => console.error(e));
         }
 
-        res.json({ message: 'Refund processed successfully', refund, status: newStatus });
+        res.json({ message: 'Refund processed successfully', refund: refundData, status: newStatus });
     } catch (error: any) {
         console.error('Refund Error:', error);
         res.status(500).json({ message: error.message || 'Server Error processing refund' });
@@ -244,42 +353,57 @@ router.post('/refund', authenticate, async (req: any, res: any) => {
 });
 
 // @route   POST /api/payment/webhook
-// @desc    Razorpay Webhook Endpoint
+// @desc    Cashfree & Razorpay Webhook Endpoint
 // @access  Public
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req: any, res: any) => {
     try {
         logWithTime('POST /api/payment/webhook - [Webhook] Received webhook request');
-        // Verify Webhook Signature
+
+        /*
+        // ORIGINAL RAZORPAY WEBHOOK LOGIC (COMMENTED OUT)
         const signature = req.headers['x-razorpay-signature'];
         const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
-
         const expectedSignature = crypto
             .createHmac('sha256', secret)
             .update(req.rawBody)
             .digest('hex');
+        if (expectedSignature !== signature) { ... }
+        */
 
-        const event = req.body.event;
-        const payload = req.body.payload;
+        // Cashfree Webhook Processing
+        const cfSignature = req.headers['x-webhook-signature'];
+        const cfTimestamp = req.headers['x-webhook-timestamp'];
+        const secret = process.env.CASHFREE_SECRET_KEY || '';
 
-        if (expectedSignature !== signature) {
-            // Return 200 to stop Razorpay from endlessly retrying old events
-            return res.status(200).send('Invalid signature but returning 200 to clear retry queue');
+        if (cfSignature && cfTimestamp && secret) {
+            const rawBody = req.rawBody ? req.rawBody.toString() : JSON.stringify(req.body);
+            const signatureData = cfTimestamp + rawBody;
+            const expectedCfSignature = crypto
+                .createHmac('sha256', secret)
+                .update(signatureData)
+                .digest('base64');
+
+            if (expectedCfSignature !== cfSignature) {
+                logWithTime('POST /api/payment/webhook - [Webhook] Cashfree Signature mismatch');
+            }
         }
 
-        logWithTime(`POST /api/payment/webhook - [Webhook] Signature verified. Event: ${event}`);
+        const type = req.body.type || req.body.event;
+        const data = req.body.data;
 
-        if (event === 'payment.captured') {
-            const payment = payload.payment.entity;
-            const orderId = payment.order_id;
+        logWithTime(`POST /api/payment/webhook - [Webhook] Event type: ${type}`);
 
-            const order = await Order.findOne({ razorpayOrderId: orderId });
+        if (type === 'PAYMENT_SUCCESS_WEBHOOK' && data?.order) {
+            const orderId = data.order.order_id;
+            const order = await Order.findOne({ $or: [{ cashfreeOrderId: orderId }, { _id: orderId }] });
+
             if (order && !order.isPaid) {
                 order.isPaid = true;
                 order.status = 'Captured';
-                order.paymentMethod = payment.method || 'Razorpay';
+                order.cashfreePaymentId = data.payment?.cf_payment_id ? String(data.payment.cf_payment_id) : '';
+                order.paymentMethod = data.payment?.payment_group || 'Cashfree';
                 await order.save();
 
-                // Increment product sales
                 if (order.orderItems && order.orderItems.length > 0) {
                     for (const item of order.orderItems) {
                         await Product.findByIdAndUpdate(item.product, {
@@ -287,41 +411,32 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: a
                         });
                     }
                 }
-                logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Captured & Sales Incremented');
-            } else if (order && payment.method) {
-                // Just update method if already paid
-                order.paymentMethod = payment.method;
-                await order.save();
-                logWithTime('POST /api/payment/webhook - [Webhook] Order Payment Method Updated');
+                logWithTime('POST /api/payment/webhook - [Webhook] Order Captured via Cashfree Webhook');
             }
         }
 
-        if (event === 'payment.failed') {
-            const payment = payload.payment.entity;
-            const orderId = payment.order_id;
+        if (type === 'PAYMENT_FAILED_WEBHOOK' && data?.order) {
+            const orderId = data.order.order_id;
             await Order.findOneAndUpdate(
-                { razorpayOrderId: orderId },
-                { status: 'Cancelled', paymentMethod: payment.method || 'Razorpay' }
+                { $or: [{ cashfreeOrderId: orderId }, { _id: orderId }] },
+                { status: 'Cancelled' }
             );
-            logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Cancelled');
+            logWithTime('POST /api/payment/webhook - [Webhook] Order Cancelled via Cashfree Webhook');
         }
 
-        if (event === 'refund.created') {
-            logWithTime('POST /api/payment/webhook - [Webhook] Refund Initiated (Created)');
-        }
+        if (type === 'REFUND_STATUS_WEBHOOK' && data?.refund) {
+            const refund = data.refund;
+            const orderId = refund.order_id;
+            const refundStatus = refund.refund_status;
 
-        if (event === 'refund.processed') {
-            try {
-                const refund = payload.refund.entity;
-                const paymentId = refund.payment_id;
-
-                const order = await Order.findOne({ razorpayPaymentId: paymentId });
-                if (order && order.status !== 'Refunded') {
+            const order = await Order.findOne({ $or: [{ cashfreeOrderId: orderId }, { _id: orderId }] });
+            if (order) {
+                if (refundStatus === 'SUCCESS' || refundStatus === 'PROCESSED') {
                     order.status = 'Refunded';
                     order.refundStatus = 'processed';
                     await order.save();
 
-                    // Decrement product sales since the sale was reversed
+                    // Decrement sales count
                     if (order.orderItems && order.orderItems.length > 0) {
                         for (const item of order.orderItems) {
                             await Product.findByIdAndUpdate(item.product, {
@@ -330,26 +445,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: a
                         }
                     }
                     logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refunded & Sales Decremented');
+                } else if (refundStatus === 'FAILED') {
+                    order.status = 'Refund Failed';
+                    order.refundStatus = 'failed';
+                    await order.save();
+                    logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refund Failed');
                 }
-            } catch (e) {
-                console.error('Webhook refund.processed Error:', e);
             }
         }
 
-        if (event === 'refund.failed') {
-            const refund = payload.refund.entity;
-            const paymentId = refund.payment_id;
-
-            const order = await Order.findOne({ razorpayPaymentId: paymentId });
-            if (order && order.status !== 'Refund Failed') {
-                order.status = 'Refund Failed';
-                order.refundStatus = 'failed';
-                await order.save();
-                logWithTime('POST /api/payment/webhook - [Webhook] Order Status Updated To: Refund Failed');
-            }
-        }
-
-        logWithTime(`POST /api/payment/webhook - [Webhook] Successfully processed event: ${event}`);
         res.status(200).json({ status: 'ok' });
     } catch (error: any) {
         console.error('Webhook Error:', error);

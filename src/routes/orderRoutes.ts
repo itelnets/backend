@@ -22,15 +22,18 @@ router.get('/myorders', authenticate, async (req: any, res: any) => {
         if (status && status !== 'All' && status !== 'All Orders') {
             if (status === 'Success') {
                 query.isPaid = true;
-                query.status = { $ne: 'Refunded' };
+                query.status = { $nin: ['Refunded', 'Refund Initiated', 'Refund Requested'] };
             } else if (status === 'Pending') {
                 query.status = 'Pending';
                 query.isPaid = false;
             } else if (status === 'Failed') {
                 // Include both hard cancellations and abandoned/pending checkouts in Failed
-                query.status = { $in: ['Cancelled', 'Pending'] };
+                query.status = { $in: ['Cancelled', 'Pending', 'Refund Failed'] };
             } else if (status === 'Refunded') {
-                query.status = 'Refunded';
+                query.$or = [
+                    { status: { $in: ['Refunded', 'Refund Initiated', 'Refund Requested'] } },
+                    { refundStatus: { $in: ['requested', 'pending', 'processed'] } }
+                ];
             } else if (status === 'Captured') {
                 query.status = 'Captured';
             }
@@ -177,7 +180,11 @@ router.get('/admin/all', authenticate, async (req: any, res: any) => {
 
         const query: any = {};
         if (status && status !== 'All') {
-            query.status = status;
+            if (status === 'Refunded') {
+                query.status = { $in: ['Refunded', 'Refund Initiated', 'Refund Requested'] };
+            } else {
+                query.status = status;
+            }
         }
 
         if (userId && mongoose.Types.ObjectId.isValid(userId)) {
